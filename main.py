@@ -1,20 +1,30 @@
-# BMS Controller LiPoFe4 Version 0.99.00
+# BMS Controller LiPoFe4 Version 0.99.01
 # Micropython with Raspberry Pico W
-# 28.01.2024 jd@icplan.de
+# 29.01.2024 jd@icplan.de
 # mit senden an Thingspeak
 
-import secrets, network, socket, time, ntptime, utime, machine, os, urequests 
+import secrets, network, socket, time, ntptime, utime, machine, os, urequests, display 
 
 from machine import UART, Pin
 uart0 = UART(0, baudrate=300, tx=Pin(16), rx=Pin(17))
 
-led = machine.Pin("LED",machine.Pin.OUT)
+led = Pin("LED",Pin.OUT)
 led.off()
-time.sleep(2)
+R1 = Pin(19, Pin.OUT)                                                              # relais 1
+R2 = Pin(20, Pin.OUT)                                                              # relais 2
+R3 = Pin(21, Pin.OUT)                                                              # relais 3
+R1.off()                                                                           # alles relais aus
+R2.off()
+R3.off()
+time.sleep(2)                                                                      # bei programmstart 2 sekunden warten
 
 # bitte anpassen
 zellen = 8                                                                         # zellenzahl (anzahl balancer)
-SEND_INTERVAL = 300                                                                # sendeintervall in sekunden
+SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
+sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
+sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser 
+sp_max_aus = 3.70                                                                  # r2 laden aus - maximalspannung
+sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
 
 # ab hier nichts aendern !
 sowi = 1                                                                           # summertime = 2 wintertime = 1
@@ -26,6 +36,13 @@ runde = 0                                                                       
 urunde = 0                                                                         # messunterrundenzaehler
 sp = [0] * zellen                                                                  # spannung jeder zelle
 sp_e = [0] * zellen                                                                # fehler bei spannungsmessung
+sp_min = 0                                                                         # kleinste zellenspannung
+sp_min_z = 0                                                                       # zellennummer mit der kleinsten spannung
+sp_max = 0                                                                         # groesste zellenspannung
+sp_max_z = 0                                                                       # zellennummer mit der groessten spannung
+rel1 = 0                                                                           # relais 1 (0=aus 1=ein)
+rel2 = 0                                                                           # relais 2 (0=aus 1=ein)
+rel3 = 0                                                                           # relais 3 (0=aus 1=ein)
 ta = [0] * zellen                                                                  # temperatur akku
 ta_e = [0] * zellen                                                                # fehler bei temperatur akku 
 tr = [0] * zellen                                                                  # temperatur lastwiderstand
@@ -45,12 +62,14 @@ t_log = [0] * (96)                                                              
 html_d = ""                                                                        # string daten
 html_t = ""                                                                        # string zeiten
 old_time = 0                                                                       # zeit der letzten mqtt sendung
+dis_x = 0
+dis_y = 0
 
 # html daten fuer webanzeige und quickchart
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.00 (28.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.01 (29.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr></table><br>"""
@@ -67,6 +86,62 @@ wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 wlan.config(hostname="BMS")
 wlan.connect(secrets.ssid, secrets.password)
+
+def anzeige():
+    global dis_x, dis_y
+    display.clear()
+    spannung = 0.00001
+    for a in range (0,zellen,1):                                                   # alle spannungen zusammenrechnen
+        spannung += float(sp[a])
+    text = '{:6.3f}'.format(spannung) + " Volt"
+    display.dis(text,0+dis_y,0+dis_x,1)
+    text = "---------------------"
+    display.dis(text,0+dis_y,16+dis_x,0)
+    text = "SP min=" + '{:6.3f}'.format(sp_min) + " V (" + '{:02d}'.format(sp_min_z) + ")" 
+    display.dis(text,0+dis_y,24+dis_x,0)
+    text = "SP max=" + '{:6.3f}'.format(sp_max) + " V (" + '{:02d}'.format(sp_max_z) + ")" 
+    display.dis(text,0+dis_y,32+dis_x,0)
+    display.show()
+
+    dis_y += 1                                                                     # displayanzeige gegen einbrennen verschieben
+    if(dis_y==3):
+        dis_y = 0
+        dis_x += 1
+        if(dis_x==3):
+            dis_x = 0
+
+def min_max():                                                                     # min und max der zellen ermitteln
+    global sp, sp_min, sp_min_z, sp_max, sp_max_z, zellen, rel1, rel2, rel3
+    a = 0                                                                          # min ermitteln
+    sp_min = 10.1
+    for a in range (0,zellen,1):
+        if(sp[a] < sp_min):
+            sp_min = sp[a]                                                         # kleinere spannung speichern
+            sp_min_z = a                                                           # passende zellennummer speichern
+    a = 0                                                                          # max ermitteln
+    sp_max = 1.1
+    for a in range (0,zellen,1):
+        if(sp[a] > sp_max):
+            sp_max = sp[a]                                                         # groessere spannung speichern
+            sp_max_z = a                                                           # passende zellennummer speichern
+    
+    if(rel1==0):                                                                   # rel1 = entladerelais
+        if(sp_min >= sp_min_ein):                                                  # spannung ist gleich oder groesser
+            rel1 = 1                                                               # wiedereinschalten
+            R1.on()
+    else:
+        if(sp_min < sp_min_aus):                                                   # spannung ist kleiner als mindestspannung
+            rel1 = 0
+            R1.off()
+            
+    if(rel2==1):                                                                   # rel2 = laderelais
+        if(sp_max > sp_max_aus):                                                   # maximalspannung ueberschritten
+            rel2 = 0                                                               # laden unterbrechen
+            R2.off()
+    else:
+        if(sp_max <= sp_max_ein):                                                  # kann laden wieder aktiviert werden?
+            rel2 = 1                                                               # wiedereinschalten
+            R2.on()            
 
 def serial_tx():
     global runde, urunde, azelle
@@ -298,6 +373,8 @@ while True:                                                                     
             print(str("errornr="),error)
     
     blinken()                                                                      # board led kurz zur funktionskontrolle aufblinken
+    min_max()                                                                      # spannungen auswerten und relais schalten
+    anzeige()
     
     akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
     if akt_time - old_time > SEND_INTERVAL:
@@ -306,3 +383,7 @@ while True:                                                                     
         payload = {'field1':str(sp[0]), 'field2':str(ta[0]), 'field3':str(tr[0])} 
         request = urequests.post( 'http://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS )  
         request.close() 
+
+
+    
+
