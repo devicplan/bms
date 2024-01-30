@@ -122,9 +122,9 @@ def anzeige():
     if(dis_zei==1):
         uptime =  time.time() - bms_start_t                                        # uptime bms modul berechnen
         d = int(uptime/(24*60*60))
-        h = int((uptime-(up_d*24*60*60))/(60*60))
-        m = int((uptime-(up_d*24*60*60)-(up_h*60*60))/60)
-        s = int(uptime-(up_d*24*60*60)-(up_h*60*60)-(up_m*60))
+        h = int((uptime-(d*24*60*60))/(60*60))
+        m = int((uptime-(d*24*60*60)-(h*60*60))/60)
+        s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
         text = "SW Version 00.99.02"                                               # softwareversion anzeigen
