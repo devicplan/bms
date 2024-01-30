@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.01
+# BMS Controller LiPoFe4 Version 0.99.02
 # Micropython with Raspberry Pico W
-# 29.01.2024 jd@icplan.de
+# 30.01.2024 jd@icplan.de
 # mit senden an Thingspeak
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests, display 
@@ -25,6 +25,10 @@ sp_min_aus = 3.05                                                               
 sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser 
 sp_max_aus = 3.70                                                                  # r2 laden aus - maximalspannung
 sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
+ta_max_al_ein = 45                                                                 # alarm maximale akkutemperatur ein -> laden & entladen aus
+ta_max_al_aus = 40                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
+tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
+tr_max_al_aus = 80                                                                 # alarm maximale shunttemperatur -> laden wieder ein
 
 # ab hier nichts aendern !
 sowi = 1                                                                           # summertime = 2 wintertime = 1
@@ -40,6 +44,12 @@ sp_min = 0                                                                      
 sp_min_z = 0                                                                       # zellennummer mit der kleinsten spannung
 sp_max = 0                                                                         # groesste zellenspannung
 sp_max_z = 0                                                                       # zellennummer mit der groessten spannung
+ta_max = 0                                                                         # groesste akkutemperatur
+ta_max_z = 0                                                                       # zellennummer mit der groessten akkutemperatur
+ta_alarm = 0                                                                       # akkutemperatur zu hoch
+tr_max = 0                                                                         # groesste shunttemperatur
+tr_max_z = 0                                                                       # zellennummer mit der groessten shunttemperatur
+tr_alarm = 0                                                                       # shunttemperatur zu hoch
 rel1 = 0                                                                           # relais 1 (0=aus 1=ein)
 rel2 = 0                                                                           # relais 2 (0=aus 1=ein)
 rel3 = 0                                                                           # relais 3 (0=aus 1=ein)
@@ -62,14 +72,16 @@ t_log = [0] * (96)                                                              
 html_d = ""                                                                        # string daten
 html_t = ""                                                                        # string zeiten
 old_time = 0                                                                       # zeit der letzten mqtt sendung
-dis_x = 0
-dis_y = 0
+dis_time = 0                                                                       # oled displayversatz zeitzaehler
+dis_y = 0                                                                          # oled displayversatz hoehe
+dis_x = 0                                                                          # oled displayversatz rechts
+dis_zei = 0                                                                        # zaehler zum umschalten der untersten zeile
 
 # html daten fuer webanzeige und quickchart
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.01 (29.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.02 (30.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr></table><br>"""
@@ -88,43 +100,64 @@ wlan.config(hostname="BMS")
 wlan.connect(secrets.ssid, secrets.password)
 
 def anzeige():
-    global dis_x, dis_y
+    global dis_time, dis_y, dis_x, dis_zei
     display.clear()
     spannung = 0.00001
     for a in range (0,zellen,1):                                                   # alle spannungen zusammenrechnen
         spannung += float(sp[a])
     text = '{:6.3f}'.format(spannung) + " Volt"
-    display.dis(text,0+dis_y,0+dis_x,1)
-    text = "---------------------"
-    display.dis(text,0+dis_y,16+dis_x,0)
-    text = "SP min=" + '{:6.3f}'.format(sp_min) + " V (" + '{:02d}'.format(sp_min_z) + ")" 
-    display.dis(text,0+dis_y,24+dis_x,0)
-    text = "SP max=" + '{:6.3f}'.format(sp_max) + " V (" + '{:02d}'.format(sp_max_z) + ")" 
-    display.dis(text,0+dis_y,32+dis_x,0)
-    display.show()
+    display.dis(text,0+dis_x,0+dis_y,1)
+    display.dis_line(0+dis_x,17+dis_y,124+dis_x,17+dis_y,1)
+    text = "SP min =" + '{:6.3f}'.format(sp_min) + " V (" + '{:02d}'.format(sp_min_z) + ")" 
+    display.dis(text,0+dis_x,20+dis_y,0)
+    text = "SP max =" + '{:6.3f}'.format(sp_max) + " V (" + '{:02d}'.format(sp_max_z) + ")" 
+    display.dis(text,0+dis_x,28+dis_y,0)
+    text = "TA max = " + '{:2d}'.format(ta_max) + "    C (" + '{:02d}'.format(ta_max_z) + ")" 
+    display.dis(text,0+dis_x,36+dis_y,0)
+    text = "TR max = " + '{:2d}'.format(tr_max) + "    C (" + '{:02d}'.format(tr_max_z) + ")" 
+    display.dis(text,0+dis_x,44+dis_y,0)
 
-    dis_y += 1                                                                     # displayanzeige gegen einbrennen verschieben
-    if(dis_y==3):
-        dis_y = 0
-        dis_x += 1
+    if(dis_zei==0):
+        text = "IP " + status[0]                                                   # ip adresse zeigen
+    if(dis_zei==1):
+        uptime =  time.time() - bms_start_t                                        # uptime bms modul berechnen
+        d = int(upt/(24*60*60))
+        h = int((upt-(up_d*24*60*60))/(60*60))
+        m = int((upt-(up_d*24*60*60)-(up_h*60*60))/60)
+        s = int(upt-(up_d*24*60*60)-(up_h*60*60)-(up_m*60))
+        text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
+    if(dis_zei==2):
+        text = "SW Version 00.99.02"                                               # softwareversion anzeigen
+    display.dis(text,0+dis_x,52+dis_y,0)
+    display.show()
+    dis_zei += 1                                                                   # zaehler unterste zeile
+    if(dis_zei>2):
+        dis_zei = 0
+
+    dis_time += 1                                                                  # zaehler displayversatz erhoehen
+    if(dis_time==30):
+        dis_time = 0
+        dis_x += 1                                                                 # displayanzeige gegen einbrennen verschieben
         if(dis_x==3):
             dis_x = 0
+            dis_y += 1
+            if(dis_y==3):
+                dis_y = 0
 
-def min_max():                                                                     # min und max der zellen ermitteln
-    global sp, sp_min, sp_min_z, sp_max, sp_max_z, zellen, rel1, rel2, rel3
-    a = 0                                                                          # min ermitteln
+def min_max():                                                                     # min und max von spannung und temperatur ermitteln
+    global sp, sp_min, sp_min_z, sp_max, sp_max_z, ta_max, ta_max_z, tr_max, tr_max_z, zellen, rel1, rel2, rel3, ta_alarm, tr_alarm
+    a = 0                                                                          # min spannung ermitteln
     sp_min = 10.1
     for a in range (0,zellen,1):
         if(sp[a] < sp_min):
             sp_min = sp[a]                                                         # kleinere spannung speichern
             sp_min_z = a                                                           # passende zellennummer speichern
-    a = 0                                                                          # max ermitteln
+    a = 0                                                                          # max spannung ermitteln
     sp_max = 1.1
     for a in range (0,zellen,1):
         if(sp[a] > sp_max):
             sp_max = sp[a]                                                         # groessere spannung speichern
             sp_max_z = a                                                           # passende zellennummer speichern
-    
     if(rel1==0):                                                                   # rel1 = entladerelais
         if(sp_min >= sp_min_ein):                                                  # spannung ist gleich oder groesser
             rel1 = 1                                                               # wiedereinschalten
@@ -133,7 +166,6 @@ def min_max():                                                                  
         if(sp_min < sp_min_aus):                                                   # spannung ist kleiner als mindestspannung
             rel1 = 0
             R1.off()
-            
     if(rel2==1):                                                                   # rel2 = laderelais
         if(sp_max > sp_max_aus):                                                   # maximalspannung ueberschritten
             rel2 = 0                                                               # laden unterbrechen
@@ -142,7 +174,39 @@ def min_max():                                                                  
         if(sp_max <= sp_max_ein):                                                  # kann laden wieder aktiviert werden?
             rel2 = 1                                                               # wiedereinschalten
             R2.on()            
-
+    a = 0                                                                          # max temperatur akku ermitteln
+    ta_max = 0
+    for a in range (0,zellen,1):
+        if(ta[a] > ta_max):
+            ta_max = ta[a]                                                         # groessere temperatur speichern
+            ta_max_z = a                                                           # passende zellennummer speichern
+    a = 0                                                                          # max temperatur lastwiderstand/shunt ermitteln
+    tr_max = 0
+    for a in range (0,zellen,1):
+        if(tr[a] > tr_max):
+            tr_max = tr[a]                                                         # groessere temperatur speichern
+            tr_max_z = a                                                           # passende zellennummer speichern
+    if(ta_alarm==0):                                                               # ist akkutemperaturalarm aus
+        if(ta_max > ta_max_al_ein):                                                # maximaltemperatur akku ueberschritten
+            ta_alarm = 1                                                           # alarm setzen
+    else:
+        if(ta_max <= ta_max_al_aus):                                               # ist akku wieder kuehler
+            ta_alarm = 0                                                           # alarm entfernen
+    if(tr_alarm==0):                                                               # ist lastwiderstandtemperaturalarm aus
+        if(tr_max > tr_max_al_ein):                                                # maximaltemperatur akku ueberschritten
+            tr_alarm = 1                                                           # alarm setzen
+    else:
+        if(tr_max <= tr_max_al_aus):                                               # ist akku wieder kuehler
+            tr_alarm = 0                                                           # alarm entfernen
+    if(ta_alarm==1):                                                               # alarm uebertemperatur akku
+        rel1 = 0                                                                   # entladen unterbrechen
+        R1.off()
+        rel2 = 0                                                                   # laden unterbrechen
+        R2.off()
+    if(tr_alarm==1):                                                               # alarm uebertemperatur shunt/lastwiderstand
+        rel2 = 0                                                                   # laden unterbrechen
+        R2.off()
+                   
 def serial_tx():
     global runde, urunde, azelle
     uart0.readline()                                                               # leerlesen falls was angekommen ist
@@ -247,6 +311,20 @@ def log_spannung():                                                             
         t_log[a-1] = t_log[a]
     t_log[95] = ("'%02d:%02d'" % (time_a[3],time_a[4]))                            # chart zeitmarkierung
 
+def thingspeak():
+    global old_time
+    akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
+    if akt_time - old_time > SEND_INTERVAL:
+        old_time = akt_time
+        print('senden an ThingSpeak')
+        payload = {'field1':str(sp[0]), 'field2':str(ta[0]), 'field3':str(tr[0])}  # erst mal nur testdaten !!!
+        try:
+            request = urequests.post( 'http://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS )  
+            request.close()
+        except OSError as error:
+            print(str("mqtt_errornr="),error)
+
+# programmstart
 max_wait = 30                                                                      # warten auf WLAN Verbindung
 while max_wait > 0:                                                                # maximal 30 sec
     if wlan.status() < 0 or wlan.status() >= 3:
@@ -374,16 +452,6 @@ while True:                                                                     
     
     blinken()                                                                      # board led kurz zur funktionskontrolle aufblinken
     min_max()                                                                      # spannungen auswerten und relais schalten
-    anzeige()
-    
-    akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
-    if akt_time - old_time > SEND_INTERVAL:
-        old_time = akt_time
-        print('senden an ThingSpeak')
-        payload = {'field1':str(sp[0]), 'field2':str(ta[0]), 'field3':str(tr[0])} 
-        request = urequests.post( 'http://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS )  
-        request.close() 
-
-
-    
+    anzeige()                                                                      # auf oled anzeigen
+    thingspeak()                                                                   # daten zu thinhspeak senden
 
