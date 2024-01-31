@@ -455,11 +455,13 @@ while True:                                                                     
     if(time_a[5] < 10):
         if((time_a[4] % 15) == 0):                                                 # zu jeder 0, 15, 30, 45 minute
             log_spannung()
+            wdt.feed()
             time.sleep(5)
             wdt.feed()
             time.sleep(5)
             wdt.feed()
     if((time_a[3] == 0)and(time_a[4] == 0)):                                       # taeglich um null uhr die interne zeit stellen
+        wdt.feed()
         time.sleep(5)
         wdt.feed()
         time.sleep(5)
