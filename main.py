@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.02
+# BMS Controller LiPoFe4 Version 0.99.03
 # Micropython with Raspberry Pico W
-# 30.01.2024 jd@icplan.de
+# 31.01.2024 jd@icplan.de
 # mit senden an Thingspeak
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests, display 
@@ -81,7 +81,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.02 (30.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.03 (31.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr></table><br>"""
@@ -127,7 +127,7 @@ def anzeige():
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.02"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.03"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -151,13 +151,13 @@ def min_max():                                                                  
     for a in range (0,zellen,1):
         if(sp[a] < sp_min):
             sp_min = sp[a]                                                         # kleinere spannung speichern
-            sp_min_z = a                                                           # passende zellennummer speichern
+            sp_min_z = a + 1                                                       # passende zellennummer speichern
     a = 0                                                                          # max spannung ermitteln
     sp_max = 1.1
     for a in range (0,zellen,1):
         if(sp[a] > sp_max):
             sp_max = sp[a]                                                         # groessere spannung speichern
-            sp_max_z = a                                                           # passende zellennummer speichern
+            sp_max_z = a + 1                                                       # passende zellennummer speichern
     if(rel1==0):                                                                   # rel1 = entladerelais
         if(sp_min >= sp_min_ein):                                                  # spannung ist gleich oder groesser
             rel1 = 1                                                               # wiedereinschalten
@@ -179,13 +179,13 @@ def min_max():                                                                  
     for a in range (0,zellen,1):
         if(ta[a] > ta_max):
             ta_max = ta[a]                                                         # groessere temperatur speichern
-            ta_max_z = a                                                           # passende zellennummer speichern
+            ta_max_z = a + 1                                                       # passende zellennummer speichern
     a = 0                                                                          # max temperatur lastwiderstand/shunt ermitteln
     tr_max = 0
     for a in range (0,zellen,1):
         if(tr[a] > tr_max):
             tr_max = tr[a]                                                         # groessere temperatur speichern
-            tr_max_z = a                                                           # passende zellennummer speichern
+            tr_max_z = a + 1                                                       # passende zellennummer speichern
     if(ta_alarm==0):                                                               # ist akkutemperaturalarm aus
         if(ta_max > ta_max_al_ein):                                                # maximaltemperatur akku ueberschritten
             ta_alarm = 1                                                           # alarm setzen
@@ -334,7 +334,19 @@ while max_wait > 0:                                                             
     led.on()
     time.sleep(1)
 if wlan.status() != 3:
-    raise RuntimeError('network connection failed')
+    print("1 Minute warten, dann Softreset")                                       # WLAN Netz nicht da oder nicht verbunden
+    reset_time = 60                                                                # zeit abwarten mit doppelblinken dann neustart
+    while(reset_time):    
+        led.on()
+        time.sleep(0.05)
+        led.off()
+        time.sleep(0.2)
+        led.on()
+        time.sleep(0.05)
+        led.off()
+        time.sleep(0.7)
+        reset_time -= 1
+    machine.reset()                                                                # neustart
 else:
     print('connected')
     status = wlan.ifconfig()
@@ -351,6 +363,7 @@ s.bind(addr)
 s.settimeout(4)
 s.listen(10)
 print('listening on', addr)
+wdt = machine.WDT(timeout=8000)                                                    # watchdog auf 8 sekunden stellen
 
 while True:                                                                        # endlosschleife Hauptprogramm
     local_time_sec = utime.time() + (int(sowi) * 3600)                             # zeitzohne beruecksichtigen
@@ -442,9 +455,17 @@ while True:                                                                     
     if(time_a[5] < 10):
         if((time_a[4] % 15) == 0):                                                 # zu jeder 0, 15, 30, 45 minute
             log_spannung()
-            time.sleep(10 - time_a[5])
+            time.sleep(5)
+            wdt.feed()
+            time.sleep(5)
+            wdt.feed()
     if((time_a[3] == 0)and(time_a[4] == 0)):                                       # taeglich um null uhr die interne zeit stellen
-        time.sleep(15)
+        time.sleep(5)
+        wdt.feed()
+        time.sleep(5)
+        wdt.feed()
+        time.sleep(5)
+        wdt.feed()
         try:
             ntptime.settime()                                                      # update zeit per ntp
         except OSError as error:
@@ -454,4 +475,5 @@ while True:                                                                     
     min_max()                                                                      # spannungen auswerten und relais schalten
     anzeige()                                                                      # auf oled anzeigen
     thingspeak()                                                                   # daten zu thinhspeak senden
+    wdt.feed()                                                                     # watchdog zuruecksetzen
 
