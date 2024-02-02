@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.03
+# BMS Controller LiPoFe4 Version 0.99.04
 # Micropython with Raspberry Pico W
-# 31.01.2024 jd@icplan.de
+# 02.02.2024 jd@icplan.de
 # mit senden an Thingspeak
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests, display 
@@ -10,12 +10,19 @@ uart0 = UART(0, baudrate=300, tx=Pin(16), rx=Pin(17))
 
 led = Pin("LED",Pin.OUT)
 led.off()
+BUZ = Pin(2, Pin.OUT)                                                              # tongeber
 R1 = Pin(19, Pin.OUT)                                                              # relais 1
 R2 = Pin(20, Pin.OUT)                                                              # relais 2
 R3 = Pin(21, Pin.OUT)                                                              # relais 3
+tas = Pin(22,machine.Pin.IN)                                                       # mode taste
+LED_ROT = Pin(28, Pin.OUT)                                                         # rote led leuchtet, bei low !
 R1.off()                                                                           # alles relais aus
 R2.off()
 R3.off()
+LED_ROT.on()                                                                       # rote (alarm) led aus
+#BUZ.on()
+time.sleep(0.02)                                                                   # kurzer ton bei start
+BUZ.off()
 time.sleep(2)                                                                      # bei programmstart 2 sekunden warten
 
 # bitte anpassen
@@ -81,7 +88,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.03 (31.01.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.04 (02.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr></table><br>"""
@@ -99,7 +106,28 @@ wlan.active(True)
 wlan.config(hostname="BMS")
 wlan.connect(secrets.ssid, secrets.password)
 
-def anzeige():
+def pin_interrupt(Pin):                                                            # interrupt processing
+    global u_error, a_error, r_error, sp_e, ta_e, tr_e
+    u_error = 0                                                                    # errormeldungen und speicher loeschen
+    a_error = 0
+    r_error = 0
+    a = 0
+    for a in range (0,zellen,1):
+        sp_e[a] = 0
+        ta_e[a] = 0
+        tr_e[a] = 0
+
+tas.irq(trigger=machine.Pin.IRQ_RISING, handler=pin_interrupt)                     # interrupt bei gedrueckte mode taste
+
+def fehler():                                                                      # fehlerreaktionen
+    if(u_error)or(a_error)or(r_error):
+        LED_ROT.off()                                                              # rote led ein
+        R3.on()
+    else:
+        LED_ROT.on()
+        R3.off()
+
+def anzeige():                                                                     # oled anzeigefunktion
     global dis_time, dis_y, dis_x, dis_zei
     display.clear()
     spannung = 0.00001
@@ -127,7 +155,7 @@ def anzeige():
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.03"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.04"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -371,6 +399,7 @@ while True:                                                                     
     serial_tx()                                                                    # seriellen datensatz senden
     try:
         cl, addr = s.accept()
+        wdt.feed()
         print('client connected from', addr)
         cl_file = cl.makefile('rwb', 0)
         while True:
@@ -440,6 +469,7 @@ while True:                                                                     
         cl.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
         cl.send(response)
         cl.close()
+        wdt.feed()
         time.sleep(4)
 
     except OSError as e:
@@ -477,5 +507,6 @@ while True:                                                                     
     min_max()                                                                      # spannungen auswerten und relais schalten
     anzeige()                                                                      # auf oled anzeigen
     thingspeak()                                                                   # daten zu thinhspeak senden
+    fehler()                                                                       # fehlerbehandlung
     wdt.feed()                                                                     # watchdog zuruecksetzen
 
