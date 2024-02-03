@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.04
+# BMS Controller LiPoFe4 Version 0.99.05
 # Micropython with Raspberry Pico W
-# 02.02.2024 jd@icplan.de
+# 03.02.2024 jd@icplan.de
 # mit senden an Thingspeak
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests, display 
@@ -88,11 +88,15 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=400"><tr><td width="200"><b>Softwareversion</b></td><td>0.99.04 (02.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.05 (03.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
-html03 = """</td></tr></table><br>"""
-html04 = """<table bgcolor="#B4D8F8" border="1" cellspacing="1" width="600"><tr><td bgcolor="#94B8E0" width="50"><b>Nr.</b></td><td bgcolor="#94B8E0" width="100"><b>Spannung</b></td><td bgcolor="#94B8E0" width="100"><b>Temp. Akku</b></td><td bgcolor="#94B8E0" width="100"><b>Temp. Shunt</b></td><td bgcolor="#94B8E0" width="140"><b>Uptime</b></td><td bgcolor="#94B8E0"><b>Software</b></td></tr>"""
+html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
+html04 = """</td></tr><tr><td><b>Balancer Akku Temperaturmessung</b></td><td>"""
+html05 = """</td></tr><tr><td><b>Balancer Shunt Temperaturmessung</b></td><td>"""
+html06 = """</td></tr><tr><td><b>BMS Gesamtfunktion</b></td><td>"""
+html07 = """</td></tr></table><br>"""
+html08 = """<table bgcolor="#B4D8F8" border="1" cellspacing="1" width="600"><tr><td bgcolor="#94B8E0" width="50"><b>Nr.</b></td><td bgcolor="#94B8E0" width="100"><b>Spannung</b></td><td bgcolor="#94B8E0" width="100"><b>Temp. Akku</b></td><td bgcolor="#94B8E0" width="100"><b>Temp. Shunt</b></td><td bgcolor="#94B8E0" width="140"><b>Uptime</b></td><td bgcolor="#94B8E0"><b>Software</b></td></tr>"""
 html20 = """Ansicht der Akkuspannung der <a href="https://quickchart.io/chart?c={type:'line',data:{labels:["""
 html21 = """],datasets:[{label:'LiFePo4 Spannung der letzten 24 Stunden (Volt)',data:["""
 html22 = """]}]}}">letzten 24 Stunden</a> als Chart<br>"""
@@ -155,7 +159,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.04"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.05"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -439,7 +443,46 @@ while True:                                                                     
         up_h = int((upt-(up_d*24*60*60))/(60*60))
         up_m = int((upt-(up_d*24*60*60)-(up_h*60*60))/60)
         up_s = int(upt-(up_d*24*60*60)-(up_h*60*60)-(up_m*60))
-        response += ("%4dd %02dh %02dm %02ds" % (up_d,up_h,up_m,up_s)) + html03 + html04
+        response += ("%4dd %02dh %02dm %02ds" % (up_d,up_h,up_m,up_s)) + html03
+        error_merker = 0                                                           # zelle mit fehlfunktion
+        error_text = ""                                                            # text der fehlfunktion
+        if(u_error):                                                               # anzeige spannungsfunktion
+            for a in range (0,zellen,1):
+                if(sp_e[a]>0):
+                    error_merker = a + 1
+                    error_text = "<font color=red>Fehler an Balancer Nr: " + ("%02d</font>" % (error_merker)) 
+                    break
+        else:
+            error_text = "ok"
+        response += error_text + html04
+        error_merker = 0                                                           # zelle mit fehlfunktion
+        error_text = ""                                                            # text der fehlfunktion
+        if(a_error):                                                               # anzeige temperaturfunktion akku
+            for a in range (0,zellen,1):
+                if(ta_e[a]>0):
+                    error_merker = a + 1
+                    error_text = "<font color=red>Fehler an Balancer Nr: " + ("%02d</font>" % (error_merker)) 
+                    break
+        else:
+            error_text = "ok"
+        response += error_text + html05
+        error_merker = 0                                                           # zelle mit fehlfunktion
+        error_text = ""                                                            # text der fehlfunktion
+        if(r_error):                                                               # anzeige temperaturfunktion lastwiderstand
+            for a in range (0,zellen,1):
+                if(tr_e[a]>0):
+                    error_merker = a + 1
+                    error_text = "<font color=red>Fehler an Balancer Nr: " + ("%02d</font>" % (error_merker)) 
+                    break
+        else:
+            error_text = "ok"
+        response += error_text + html06
+        error_text = ""                                                            # text der fehlfunktion
+        if((u_error)or(a_error)or(r_error)):
+            error_text = "<font color=red>Entladen und Laden abgeschaltet !</font>"
+        else:
+            error_text = "keine Fehlfunktion"
+        response += error_text + html07 + html08
         
         z = 0                                                                      # tabelle mit messwerten für html seite erstellen              
         for z in range (0,zellen,1):
