@@ -1,9 +1,25 @@
-# BMS Controller LiPoFe4 Version 0.99.05
+# BMS Controller LiPoFe4 Version 0.99.06
 # Micropython with Raspberry Pico W
-# 03.02.2024 jd@icplan.de
+# 04.02.2024 jd@icplan.de
 # mit senden an Thingspeak
 
-import secrets, network, socket, time, ntptime, utime, machine, os, urequests, display 
+# bitte anpassen
+oled_display = 1                                                                   # 0=kein display 1=betrieb mit oled display
+wifi_ein = 1                                                                       # 0=kein wifi 1=betrieb mit wifi und internet
+zellen = 8                                                                         # zellenzahl (anzahl balancer)
+sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
+sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser 
+sp_max_aus = 3.70                                                                  # r2 laden aus - maximalspannung
+sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
+ta_max_al_ein = 45                                                                 # alarm maximale akkutemperatur ein -> laden & entladen aus
+ta_max_al_aus = 40                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
+tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
+tr_max_al_aus = 80                                                                 # alarm maximale shunttemperatur -> laden wieder ein
+SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
+
+import secrets, network, socket, time, ntptime, utime, machine, os, urequests
+if(oled_display):
+    import display 
 
 from machine import UART, Pin
 uart0 = UART(0, baudrate=300, tx=Pin(16), rx=Pin(17))
@@ -24,18 +40,6 @@ LED_ROT.on()                                                                    
 time.sleep(0.02)                                                                   # kurzer ton bei start
 BUZ.off()
 time.sleep(2)                                                                      # bei programmstart 2 sekunden warten
-
-# bitte anpassen
-zellen = 8                                                                         # zellenzahl (anzahl balancer)
-SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
-sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
-sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser 
-sp_max_aus = 3.70                                                                  # r2 laden aus - maximalspannung
-sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
-ta_max_al_ein = 45                                                                 # alarm maximale akkutemperatur ein -> laden & entladen aus
-ta_max_al_aus = 40                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
-tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
-tr_max_al_aus = 80                                                                 # alarm maximale shunttemperatur -> laden wieder ein
 
 # ab hier nichts aendern !
 sowi = 1                                                                           # summertime = 2 wintertime = 1
@@ -88,7 +92,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.05 (03.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.06 (04.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -108,7 +112,10 @@ HTTP_HEADERS = {'Content-Type': 'application/json'}                             
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 wlan.config(hostname="BMS")
-wlan.connect(secrets.ssid, secrets.password)
+if(wifi_ein):
+    wlan.connect(secrets.ssid, secrets.password)
+else:
+    wlan.connect('no_ssid', 'no_password')                                         # ungueltige daten setzen
 
 def pin_interrupt(Pin):                                                            # interrupt processing
     global u_error, a_error, r_error, sp_e, ta_e, tr_e
@@ -359,13 +366,13 @@ def thingspeak():
 # programmstart
 max_wait = 30                                                                      # warten auf WLAN Verbindung
 while max_wait > 0:                                                                # maximal 30 sec
-    if wlan.status() < 0 or wlan.status() >= 3:
+    if wlan.status() < 0 or wlan.status() >= 3 or not(wifi_ein):
         break
     max_wait -= 1
     print('waiting for connection...')
     led.on()
     time.sleep(1)
-if wlan.status() != 3:
+if wlan.status() != 3 and wifi_ein:
     print("1 Minute warten, dann Softreset")                                       # WLAN Netz nicht da oder nicht verbunden
     reset_time = 60                                                                # zeit abwarten mit doppelblinken dann neustart
     while(reset_time):    
@@ -548,8 +555,10 @@ while True:                                                                     
     
     blinken()                                                                      # board led kurz zur funktionskontrolle aufblinken
     min_max()                                                                      # spannungen auswerten und relais schalten
-    anzeige()                                                                      # auf oled anzeigen
-    thingspeak()                                                                   # daten zu thinhspeak senden
+    if(oled_display):                                                              # soll oled genutzt werden
+        anzeige()                                                                  # auf oled anzeigen
+    if(wifi_ein):                                                                  # soll wifi genutzt werden
+        thingspeak()                                                               # daten zu thinhspeak senden
     fehler()                                                                       # fehlerbehandlung
     wdt.feed()                                                                     # watchdog zuruecksetzen
 
