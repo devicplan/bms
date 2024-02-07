@@ -1,11 +1,12 @@
-# BMS Controller LiPoFe4 Version 0.99.06
+# BMS Controller LiPoFe4 Version 0.99.07
 # Micropython with Raspberry Pico W
-# 04.02.2024 jd@icplan.de
+# 07.02.2024 jd@icplan.de
 # mit senden an Thingspeak
 
 # bitte anpassen
 oled_display = 1                                                                   # 0=kein display 1=betrieb mit oled display
 wifi_ein = 1                                                                       # 0=kein wifi 1=betrieb mit wifi und internet
+ton_ein = 0                                                                        # 0=kein ton 1=tonausgabe bei start und fehler
 zellen = 8                                                                         # zellenzahl (anzahl balancer)
 sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
 sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser 
@@ -15,6 +16,7 @@ ta_max_al_ein = 45                                                              
 ta_max_al_aus = 40                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
 tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
 tr_max_al_aus = 80                                                                 # alarm maximale shunttemperatur -> laden wieder ein
+t_unter = 0                                                                        # laden wird unterbrochen, wenn akkutemperatur kleiner ist
 SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests
@@ -36,17 +38,19 @@ R1.off()                                                                        
 R2.off()
 R3.off()
 LED_ROT.on()                                                                       # rote (alarm) led aus
-#BUZ.on()
+if(ton_ein):
+    BUZ.on()
 time.sleep(0.02)                                                                   # kurzer ton bei start
 BUZ.off()
 time.sleep(2)                                                                      # bei programmstart 2 sekunden warten
 
 # ab hier nichts aendern !
-sowi = 1                                                                           # summertime = 2 wintertime = 1
+sowi = 1                                                                           # 2=sommerzeit 1=winterzeit
 azelle = 1                                                                         # aktuelle abgefragte zelle
 u_error = 0                                                                        # 0 = kein 1 = mindestens ein fehler bei spannungsmessung
 a_error = 0                                                                        # 0 = kein 1 = mindestens ein fehler temperatur am akku (ATTINY)
 r_error = 0                                                                        # 0 = kein 1 = mindestens ein fehler temperatur am lastwiderstand
+laden_aus = 0                                                                      # 0 = laden moeglich 1 = aus zu gerine tempertur des akkus
 runde = 0                                                                          # messrundenzaehler
 urunde = 0                                                                         # messunterrundenzaehler
 sp = [0] * zellen                                                                  # spannung jeder zelle
@@ -58,6 +62,7 @@ sp_max_z = 0                                                                    
 ta_max = 0                                                                         # groesste akkutemperatur
 ta_max_z = 0                                                                       # zellennummer mit der groessten akkutemperatur
 ta_alarm = 0                                                                       # akkutemperatur zu hoch
+ta_min = 0                                                                         # kleinste akkutemperatur
 tr_max = 0                                                                         # groesste shunttemperatur
 tr_max_z = 0                                                                       # zellennummer mit der groessten shunttemperatur
 tr_alarm = 0                                                                       # shunttemperatur zu hoch
@@ -65,7 +70,7 @@ rel1 = 0                                                                        
 rel2 = 0                                                                           # relais 2 (0=aus 1=ein)
 rel3 = 0                                                                           # relais 3 (0=aus 1=ein)
 ta = [0] * zellen                                                                  # temperatur akku
-ta_e = [0] * zellen                                                                # fehler bei temperatur akku 
+ta_e = [0] * zellen                                                                # fehler bei temperatur akku
 tr = [0] * zellen                                                                  # temperatur lastwiderstand
 tr_e = [0] * zellen                                                                # fehler bei temperatur lastwiderstand
 up = [0] * zellen                                                                  # uptimer je zelle
@@ -92,7 +97,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.06 (04.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.07 (07.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -166,7 +171,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.05"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.07"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -184,7 +189,7 @@ def anzeige():                                                                  
                 dis_y = 0
 
 def min_max():                                                                     # min und max von spannung und temperatur ermitteln
-    global sp, sp_min, sp_min_z, sp_max, sp_max_z, ta_max, ta_max_z, tr_max, tr_max_z, zellen, rel1, rel2, rel3, ta_alarm, tr_alarm
+    global sp, sp_min, sp_min_z, sp_max, sp_max_z, ta_max, ta_max_z, ta_min, tr_max, tr_max_z, zellen, rel1, rel2, rel3, ta_alarm, tr_alarm, laden_aus
     a = 0                                                                          # min spannung ermitteln
     sp_min = 10.1
     for a in range (0,zellen,1):
@@ -200,25 +205,31 @@ def min_max():                                                                  
     if(rel1==0):                                                                   # rel1 = entladerelais
         if(sp_min >= sp_min_ein):                                                  # spannung ist gleich oder groesser
             rel1 = 1                                                               # wiedereinschalten
-            R1.on()
     else:
         if(sp_min < sp_min_aus):                                                   # spannung ist kleiner als mindestspannung
             rel1 = 0
-            R1.off()
     if(rel2==1):                                                                   # rel2 = laderelais
         if(sp_max > sp_max_aus):                                                   # maximalspannung ueberschritten
             rel2 = 0                                                               # laden unterbrechen
-            R2.off()
     else:
         if(sp_max <= sp_max_ein):                                                  # kann laden wieder aktiviert werden?
             rel2 = 1                                                               # wiedereinschalten
-            R2.on()            
     a = 0                                                                          # max temperatur akku ermitteln
     ta_max = 0
     for a in range (0,zellen,1):
         if(ta[a] > ta_max):
             ta_max = ta[a]                                                         # groessere temperatur speichern
             ta_max_z = a + 1                                                       # passende zellennummer speichern
+    a = 0                                                                          # min temperatur akku ermitteln
+    ta_min = 50
+    for a in range (0,zellen,1):
+        if(ta[a] < ta_min):
+            ta_min = ta[a]                                                         # kleinere temperatur speichern
+    if(ta_min<t_unter):                                                           # akkutemperatur kleiner oder gleich als minimalwert
+        laden_aus = 1
+    else:
+        laden_aus = 0
+
     a = 0                                                                          # max temperatur lastwiderstand/shunt ermitteln
     tr_max = 0
     for a in range (0,zellen,1):
@@ -239,13 +250,34 @@ def min_max():                                                                  
             tr_alarm = 0                                                           # alarm entfernen
     if(ta_alarm==1):                                                               # alarm uebertemperatur akku
         rel1 = 0                                                                   # entladen unterbrechen
-        R1.off()
         rel2 = 0                                                                   # laden unterbrechen
-        R2.off()
     if(tr_alarm==1):                                                               # alarm uebertemperatur shunt/lastwiderstand
         rel2 = 0                                                                   # laden unterbrechen
+        
+    if(laden_aus):                                                                 # bei zu geringer temperatur laden abschalten
+        rel2 = 0
+
+    if(rel1):                                                                      # relais 1 physisch schalten
+        R1.on()
+    else:
+        R1.off()
+    if(rel2):                                                                      # relais 2 physisch schalten
+        R2.on()
+    else:
         R2.off()
-                   
+
+def alarmton():                                                                    # tonzeichen bei fehlererkennung
+    if((u_error)or(a_error)or(r_error)):
+        if(ton_ein):
+            BUZ.on()
+        time.sleep(0.05)
+        BUZ.off()
+        time.sleep(0.2)
+        if(ton_ein):
+            BUZ.on()
+        time.sleep(0.05)
+        BUZ.off()
+
 def serial_tx():
     global runde, urunde, azelle
     uart0.readline()                                                               # leerlesen falls was angekommen ist
@@ -354,6 +386,7 @@ def thingspeak():
     global old_time
     akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
     if akt_time - old_time > SEND_INTERVAL:
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         old_time = akt_time
         print('senden an ThingSpeak')
         payload = {'field1':str(sp[0]), 'field2':str(ta[0]), 'field3':str(tr[0])}  # erst mal nur testdaten !!!
@@ -362,6 +395,7 @@ def thingspeak():
             request.close()
         except OSError as error:
             print(str("mqtt_errornr="),error)
+        wdt.feed()                                                                 # watchdog zuruecksetzen
 
 # programmstart
 max_wait = 30                                                                      # warten auf WLAN Verbindung
@@ -410,7 +444,7 @@ while True:                                                                     
     serial_tx()                                                                    # seriellen datensatz senden
     try:
         cl, addr = s.accept()
-        wdt.feed()
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         print('client connected from', addr)
         cl_file = cl.makefile('rwb', 0)
         while True:
@@ -487,6 +521,8 @@ while True:                                                                     
         error_text = ""                                                            # text der fehlfunktion
         if((u_error)or(a_error)or(r_error)):
             error_text = "<font color=red>Entladen und Laden abgeschaltet !</font>"
+        elif(laden_aus):
+            error_text = "<font color=red>Akkutemperatur zu klein - Laden aus</font>"
         else:
             error_text = "keine Fehlfunktion"
         response += error_text + html07 + html08
@@ -519,7 +555,7 @@ while True:                                                                     
         cl.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
         cl.send(response)
         cl.close()
-        wdt.feed()
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(4)
 
     except OSError as e:
@@ -535,19 +571,19 @@ while True:                                                                     
     if(time_a[5] < 10):
         if((time_a[4] % 15) == 0):                                                 # zu jeder 0, 15, 30, 45 minute
             log_spannung()
-            wdt.feed()
+            wdt.feed()                                                             # watchdog zuruecksetzen
             time.sleep(5)
-            wdt.feed()
+            wdt.feed()                                                             # watchdog zuruecksetzen
             time.sleep(5)
             wdt.feed()
     if((time_a[3] == 0)and(time_a[4] == 0)):                                       # taeglich um null uhr die interne zeit stellen
-        wdt.feed()
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(5)
-        wdt.feed()
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(5)
-        wdt.feed()
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(5)
-        wdt.feed()
+        wdt.feed()                                                                 # watchdog zuruecksetzen
         try:
             ntptime.settime()                                                      # update zeit per ntp
         except OSError as error:
@@ -555,6 +591,7 @@ while True:                                                                     
     
     blinken()                                                                      # board led kurz zur funktionskontrolle aufblinken
     min_max()                                                                      # spannungen auswerten und relais schalten
+    alarmton()                                                                     # tonzeichen ausgeben bei fehler         
     if(oled_display):                                                              # soll oled genutzt werden
         anzeige()                                                                  # auf oled anzeigen
     if(wifi_ein):                                                                  # soll wifi genutzt werden
