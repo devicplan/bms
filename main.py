@@ -1,7 +1,7 @@
-# BMS Controller LiPoFe4 Version 0.99.07
+# BMS Controller LiPoFe4 Version 0.99.08
 # Micropython with Raspberry Pico W
-# 07.02.2024 jd@icplan.de
-# mit senden an Thingspeak
+# 09.02.2024 jd@icplan.de
+# mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte anpassen
 oled_display = 1                                                                   # 0=kein display 1=betrieb mit oled display
@@ -26,7 +26,7 @@ if(oled_display):
 from machine import UART, Pin
 uart0 = UART(0, baudrate=300, tx=Pin(16), rx=Pin(17))
 
-led = Pin("LED",Pin.OUT)
+led = Pin("LED",Pin.OUT)                                                           # gruene led auf Raspberry Pico w
 led.off()
 BUZ = Pin(2, Pin.OUT)                                                              # tongeber
 R1 = Pin(19, Pin.OUT)                                                              # relais 1
@@ -97,7 +97,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.07 (07.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.08 (09.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -122,7 +122,7 @@ if(wifi_ein):
 else:
     wlan.connect('no_ssid', 'no_password')                                         # ungueltige daten setzen
 
-def pin_interrupt(Pin):                                                            # interrupt processing
+def pin_interrupt(Pin):                                                            # interrupt verarbeitung
     global u_error, a_error, r_error, sp_e, ta_e, tr_e
     u_error = 0                                                                    # errormeldungen und speicher loeschen
     a_error = 0
@@ -133,7 +133,7 @@ def pin_interrupt(Pin):                                                         
         ta_e[a] = 0
         tr_e[a] = 0
 
-tas.irq(trigger=machine.Pin.IRQ_RISING, handler=pin_interrupt)                     # interrupt bei gedrueckte mode taste
+tas.irq(trigger=machine.Pin.IRQ_RISING, handler=pin_interrupt)                     # definition interrupt bei gedrueckte mode taste
 
 def fehler():                                                                      # fehlerreaktionen
     if(u_error)or(a_error)or(r_error):
@@ -171,7 +171,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.07"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.08"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -225,7 +225,7 @@ def min_max():                                                                  
     for a in range (0,zellen,1):
         if(ta[a] < ta_min):
             ta_min = ta[a]                                                         # kleinere temperatur speichern
-    if(ta_min<t_unter):                                                           # akkutemperatur kleiner oder gleich als minimalwert
+    if(ta_min<t_unter):                                                            # akkutemperatur kleiner oder gleich als minimalwert
         laden_aus = 1
     else:
         laden_aus = 0
@@ -266,7 +266,7 @@ def min_max():                                                                  
     else:
         R2.off()
 
-def alarmton():                                                                    # tonzeichen bei fehlererkennung
+def alarmton():                                                                    # doppeltonzeichen bei fehler
     if((u_error)or(a_error)or(r_error)):
         if(ton_ein):
             BUZ.on()
@@ -389,7 +389,7 @@ def thingspeak():
         wdt.feed()                                                                 # watchdog zuruecksetzen
         old_time = akt_time
         print('senden an ThingSpeak')
-        payload = {'field1':str(sp[0]), 'field2':str(ta[0]), 'field3':str(tr[0])}  # erst mal nur testdaten !!!
+        payload = {'field1':str(sp[0]), 'field2':str(sp[1]), 'field3':str(sp[2]), 'field4':str(sp[3]), 'field5':str(sp[4]), 'field6':str(sp[5]), 'field7':str(sp[6]), 'field8':str(sp[7])}  # spannungsdaten aller zellen
         try:
             request = urequests.post( 'http://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS )  
             request.close()
@@ -409,7 +409,7 @@ while max_wait > 0:                                                             
 if wlan.status() != 3 and wifi_ein:
     print("1 Minute warten, dann Softreset")                                       # WLAN Netz nicht da oder nicht verbunden
     reset_time = 60                                                                # zeit abwarten mit doppelblinken dann neustart
-    while(reset_time):    
+    while(reset_time):                                                             # doppelblinken
         led.on()
         time.sleep(0.05)
         led.off()
@@ -490,9 +490,9 @@ while True:                                                                     
         if(u_error):                                                               # anzeige spannungsfunktion
             for a in range (0,zellen,1):
                 if(sp_e[a]>0):
+                    sp[a] = 0                                                      # spannungswert bei fehler auf null setzen
                     error_merker = a + 1
                     error_text = "<font color=red>Fehler an Balancer Nr: " + ("%02d</font>" % (error_merker)) 
-                    break
         else:
             error_text = "ok"
         response += error_text + html04
@@ -501,9 +501,9 @@ while True:                                                                     
         if(a_error):                                                               # anzeige temperaturfunktion akku
             for a in range (0,zellen,1):
                 if(ta_e[a]>0):
+                    ta[a] = 0                                                      # temperaturwert bei fehler auf null setzen
                     error_merker = a + 1
                     error_text = "<font color=red>Fehler an Balancer Nr: " + ("%02d</font>" % (error_merker)) 
-                    break
         else:
             error_text = "ok"
         response += error_text + html05
@@ -512,9 +512,9 @@ while True:                                                                     
         if(r_error):                                                               # anzeige temperaturfunktion lastwiderstand
             for a in range (0,zellen,1):
                 if(tr_e[a]>0):
+                    tr[a] = 0                                                      # temperaturwert bei fehler auf null setzen
                     error_merker = a + 1
                     error_text = "<font color=red>Fehler an Balancer Nr: " + ("%02d</font>" % (error_merker)) 
-                    break
         else:
             error_text = "ok"
         response += error_text + html06
