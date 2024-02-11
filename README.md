@@ -73,9 +73,9 @@ Auch die Nutzung eines eigenen MQTT Brokers (FHEM, ioBroker, IP-Symcon, Mosquito
 * einstellbarer Alarm bei extremer Unterspannung einer Zelle (lange Lagerung ohne Laden)  
 * einstellbarer Alarm bei extremer Überspannung einer Zelle (Balancer oder SSR ist defekt) 
 * 3 Varianten der Spannungsversorgung möglich.
-  a) über USB Anschluss
-  b) über 12-40 Volt Gleichspannung vom Akku
-  c) mit 230 Volt aus dem Stromnetz. (stromsparende Schaltnetzteiltechnik)
+  - a) über USB Anschluss
+  - b) über 12-40 Volt Gleichspannung vom Akku
+  - c) mit 230 Volt aus dem Stromnetz. (stromsparende Schaltnetzteiltechnik)
 * Watchdog (automatischer Neustart der Software, wenn diese längere Zeit nicht reagiert)
 * Fehlerzustände können über die Webansicht oder über den Mode Taster quittiert werden
 * Firmware im Raspberry Pico W kann jederzeit geändert und aktualisiert werden
