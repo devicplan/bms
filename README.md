@@ -1,6 +1,6 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/devicplan/bms/blob/main/picture03.jpg">
-</picture>
+<p align="center">
+  <img src="https://github.com/devicplan/bms/blob/main/picture03.jpg" title="bms controller">
+</p>
 
 # BMS Controller
 
