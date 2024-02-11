@@ -1,3 +1,7 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/25423296/163456776-7f95b81a-f1ed-45f7-b7ab-8fa810d529fa.png">
+</picture>
+
 # BMS Controller
 
 A BMS - Battery Management System Controller has the task of monitoring a large number of LiFePo4, Li-Ion, LiPo battery cells so that they are not damaged during charging and discharging and can be used for as long as possible without any faults.
@@ -68,7 +72,10 @@ Auch die Nutzung eines eigenen MQTT Brokers (FHEM, ioBroker, IP-Symcon, Mosquito
 * einstellbarer Untertemperaturschutz des Akkus beim Laden
 * einstellbarer Alarm bei extremer Unterspannung einer Zelle (lange Lagerung ohne Laden)  
 * einstellbarer Alarm bei extremer Überspannung einer Zelle (Balancer oder SSR ist defekt) 
-* 3 Varianten der Spannungsversorgung möglich. a) über USB Anschluss b) über 12-40 Volt Gleichspannung vom Akku c) mit 230 Volt aus dem Stromnetz. (stromsparende Schaltnetzteiltechnik)
+* 3 Varianten der Spannungsversorgung möglich.
+  a) über USB Anschluss
+  b) über 12-40 Volt Gleichspannung vom Akku
+  c) mit 230 Volt aus dem Stromnetz. (stromsparende Schaltnetzteiltechnik)
 * Watchdog (automatischer Neustart der Software, wenn diese längere Zeit nicht reagiert)
 * Fehlerzustände können über die Webansicht oder über den Mode Taster quittiert werden
 * Firmware im Raspberry Pico W kann jederzeit geändert und aktualisiert werden
