@@ -28,7 +28,10 @@ It would also be possible to use your own MQTT broker (FHEM, ioBroker, IP-Symcon
 * adjustable under-temperature protection of the battery during charging
 * adjustable alarm in the event of extreme undervoltage of a cell (long storage without charging)  
 * adjustable alarm in the event of extreme overvoltage of a cell (balancer or SSR is defective) 
-* 3 variants of power supply possible. a) via USB connection b) via 12-40 volts DC from the battery c) with 230 volts from the mains. (energy-saving switching power supply technology)
+* 3 variants of power supply possible.
+   a) via USB connection
+   b) via 12-40 volts DC from the battery
+   c) with 230 volts from the mains. (energy-saving switching power supply technology)
 * watchdog (automatic restart of the software if it does not respond for a longer period of time)
 * error states can be acknowledged via the web view or via the mode button
 * firmware in the Raspberry Pico W can be changed and updated at any time
