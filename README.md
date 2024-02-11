@@ -1,8 +1,8 @@
+# BMS Controller
+
 <p align="center">
   <img src="https://github.com/devicplan/bms/blob/main/picture03.jpg" title="bms controller">
 </p>
-
-# BMS Controller
 
 A BMS - Battery Management System Controller has the task of monitoring a large number of LiFePo4, Li-Ion, LiPo battery cells so that they are not damaged during charging and discharging and can be used for as long as possible without any faults.
 My BMS controller communicates with the balancer modules via a data bus and controls the charging and discharging of the battery cells directly via switching relays. In my case, these relays each switch a Victron Smart BatterieProtect (SSR 65-220A solid state relay). The battery cells are protected by the BMS controller against overcharging, over-discharging and high and low temperatures. The galvanically isolated bus connection uses its own serial data protocol and can read out the battery voltage, battery temperature and the temperature of the load resistors from the balancers at any time. As soon as a temperature that is too high or too low is detected or a malfunction occurs when reading the data, the BMS controller reacts appropriately and disconnects the load or interrupts charging. In the event of an error, an audio signal can be emitted for signaling purposes. In addition, a switched relay contact can be used freely. In the event of serious malfunctions, the BMS switches off charging or discharging completely. The error must then be acknowledged via the web interface or directly via a button on the BMS module. The BMS controller has a WLAN web interface and can connect to an existing WLAN network. The most important parameters of all battery cells and the function of the BMS can be called up in the network via a browser. To protect against tampering, it is not possible to change settings via the web interface. An OLED display on the BMS controller can also show the most important parameters of the battery cells. If there is a desire to record or further process the battery cell data, the BMS Controller can also send it to a free Thingspeak cloud account. 
