@@ -31,7 +31,8 @@ It would also be possible to use your own MQTT broker (FHEM, ioBroker, IP-Symcon
 * adjustable overtemperature protection of the battery during charging and discharging
 * adjustable under-temperature protection of the battery during charging
 * adjustable alarm in the event of extreme undervoltage of a cell (long storage without charging)  
-* adjustable alarm in the event of extreme overvoltage of a cell (balancer or SSR is defective) 
+* adjustable alarm in the event of extreme overvoltage of a cell (balancer or SSR is defective)
+* Adjustable alarm in the event of extreme overtemperature of a cell (cell or terminal defective) 
 * 3 variants of power supply possible.
   - a) via USB connection
   - b) via 12-40 volts DC from the battery
@@ -71,7 +72,8 @@ Auch die Nutzung eines eigenen MQTT Brokers (FHEM, ioBroker, IP-Symcon, Mosquito
 * einstellbare Übertemperaturschutz des Akkus beim Laden und Entladen
 * einstellbarer Untertemperaturschutz des Akkus beim Laden
 * einstellbarer Alarm bei extremer Unterspannung einer Zelle (lange Lagerung ohne Laden)  
-* einstellbarer Alarm bei extremer Überspannung einer Zelle (Balancer oder SSR ist defekt) 
+* einstellbarer Alarm bei extremer Überspannung einer Zelle (Balancer oder SSR ist defekt)
+* einstellbarer Alarm bei extremer Übertemperatur einer Zelle (Zelle oder Klemmstelle defekt) 
 * 3 Varianten der Spannungsversorgung möglich.
   - a) über USB Anschluss
   - b) über 12-40 Volt Gleichspannung vom Akku
