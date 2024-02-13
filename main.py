@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.09
+# BMS Controller LiPoFe4 Version 0.99.10
 # Micropython with Raspberry Pico W
-# 11.02.2024 jd@icplan.de
+# 13.02.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte anpassen
@@ -10,10 +10,11 @@ ton_ein = 0                                                                     
 zellen = 8                                                                         # zellenzahl (anzahl balancer) 1-50
 sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
 sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser
-sp_min_al = 2.95                                                                   # unterspannungsalarm - wenn eine zelle unter dieser spannung liegt
+sp_min_al = 2.95                                                                   # unterspannungsalarm tonzeichen - wenn eine zelle unter dieser spannung liegt
 sp_max_aus = 3.70                                                                  # r2 laden aus - maximalspannung
 sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
-sp_max_al = 3.75                                                                   # ueberspannungsalarm - wenn eine zelle ueber dieser spannung liegt
+sp_max_al = 3.75                                                                   # ueberspannungsalarm tonzeichen - wenn eine zelle ueber dieser spannung liegt
+ta_max_al = 60                                                                     # uebertemperatur akku tonzeichen - wenn eine zelle ueber dieser temperatur liegt
 ta_max_al_ein = 45                                                                 # alarm maximale akkutemperatur ein -> laden & entladen aus
 ta_max_al_aus = 40                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
 tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
@@ -63,6 +64,7 @@ sp_max = 0                                                                      
 sp_max_z = 0                                                                       # zellennummer mit der groessten spannung
 sp_min_alarm = 0                                                                   # spannung einer zelle viel zu klein
 sp_max_alarm = 0                                                                   # spannung einer zelle viel zu gross
+ta_max_alarm = 0                                                                   # temperatur einer zelle viel zu gross
 ta_max = 0                                                                         # groesste akkutemperatur
 ta_max_z = 0                                                                       # zellennummer mit der groessten akkutemperatur
 ta_alarm = 0                                                                       # akkutemperatur zu hoch
@@ -101,7 +103,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.09 (11.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.10 (13.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -127,12 +129,13 @@ else:
     wlan.connect('no_ssid', 'no_password')                                         # dummydaten setzen
 
 def pin_interrupt(Pin):                                                            # interrupt verarbeitung
-    global u_error, a_error, r_error, sp_e, ta_e, tr_e, sp_min_alarm, sp_max_alarm
+    global u_error, a_error, r_error, sp_e, ta_e, tr_e, sp_min_alarm, sp_max_alarm, ta_max_alarm
     u_error = 0                                                                    # errormeldungen und speicher loeschen
     a_error = 0
     r_error = 0
     sp_min_alarm = 0
     sp_max_alarm = 0
+    ta_max_alarm = 0
     a = 0
     for a in range (0,zellen,1):
         sp_e[a] = 0
@@ -142,7 +145,7 @@ def pin_interrupt(Pin):                                                         
 tas.irq(trigger=machine.Pin.IRQ_RISING, handler=pin_interrupt)                     # definition interrupt bei gedrueckte mode taste
 
 def fehler():                                                                      # fehlerreaktionen
-    if(u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm):
+    if(u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm)or(ta_max_alarm):
         LED_ROT.off()                                                              # rote led ein
         R3.on()
     else:
@@ -177,7 +180,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.09"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.10"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -195,7 +198,7 @@ def anzeige():                                                                  
                 dis_y = 0
 
 def min_max():                                                                     # min und max von spannung und temperatur ermitteln
-    global sp, sp_min, sp_min_z, sp_max, sp_max_z, ta_max, ta_max_z, ta_min, tr_max, tr_max_z, zellen, rel1, rel2, rel3, ta_alarm, tr_alarm, laden_aus, sp_min_alarm, sp_max_alarm
+    global sp, sp_min, sp_min_z, sp_max, sp_max_z, ta_max, ta_max_z, ta_min, tr_max, tr_max_z, zellen, rel1, rel2, rel3, ta_alarm, tr_alarm, laden_aus, sp_min_alarm, sp_max_alarm, ta_max_alarm
     a = 0                                                                          # min spannung ermitteln
     sp_min = 5.001                                                                 # spannung ist immer kleiner als 5,001 volt
     for a in range (0,zellen,1):
@@ -269,7 +272,10 @@ def min_max():                                                                  
     if((sp_max > sp_max_al)):                                                      # alarm, wenn eine zelle extreme ueberspannung hat
         sp_max_alarm = 1                                                           # könnte passieren, wenn balancer defekt ist
 
-    if(u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm):             # bei kommunikationsproblemen und bei extremen spannungen
+    if((ta_max > ta_max_al)):                                                      # alarm, wenn eine zelle extreme uebertemperatur hat
+        ta_max_alarm = 1                                                           # könnte passieren, wenn zelle defekt ist oder klemmstelle lose
+
+    if(u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm)or(ta_max_alarm):  # bei kommunikationsproblemen und bei extremen spannungen / temperaturen
         rel1 = 0                                                                   # entladen unterbrechen
         rel2 = 0                                                                   # laden unterbrechen
         
@@ -283,7 +289,7 @@ def min_max():                                                                  
         R2.off()
 
 def alarmton():                                                                    # doppeltonzeichen bei fehler
-    if((u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm)):
+    if((u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm)or(ta_max_alarm)):
         if(ton_ein):
             BUZ.on()
         time.sleep(0.05)
@@ -558,6 +564,8 @@ while True:                                                                     
             error_text = "<font color=red>Zelle mit extremer Unterspannung</font>"
         elif(sp_max_alarm):
             error_text = "<font color=red>Zelle mit extremer Ueberspannung</font>"
+        elif(ta_max_alarm):
+            error_text = "<font color=red>Zelle mit extremer Uebertemperatur</font>"
         else:
             error_text = "keine Fehlfunktion"
         response += error_text + html07 + html08
