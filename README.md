@@ -47,10 +47,10 @@ It would also be possible to use your own MQTT broker (FHEM, ioBroker, IP-Symcon
 ## Technical data
 
 Power consumption with Oled display
-12 Volt = 55 mA
-18 Volt = 36 mA
-24 Volt = 27 mA
-28 Volt = 24 mA
+* 12 Volt = 55 mA
+* 18 Volt = 36 mA
+* 24 Volt = 27 mA
+* 28 Volt = 24 mA
 
 # BMS Controller
 
@@ -97,7 +97,7 @@ Auch die Nutzung eines eigenen MQTT Brokers (FHEM, ioBroker, IP-Symcon, Mosquito
 ## technische Daten
 
 Stromverbrauch mit Oled Display
-12 Volt = 55 mA
-18 Volt = 36 mA
-24 Volt = 27 mA
-28 Volt = 24 mA
+* 12 Volt = 55 mA
+* 18 Volt = 36 mA
+* 24 Volt = 27 mA
+* 28 Volt = 24 mA
