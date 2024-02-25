@@ -1,12 +1,12 @@
-# BMS Controller LiPoFe4 Version 0.99.10
+# BMS Controller LiPoFe4 Version 0.99.11
 # Micropython with Raspberry Pico W
-# 13.02.2024 jd@icplan.de
+# 25.02.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte anpassen
 oled_display = 1                                                                   # 0=kein display 1=betrieb mit oled display
 wifi_ein = 1                                                                       # 0=kein wifi 1=betrieb mit wifi und internet
-ton_ein = 0                                                                        # 0=kein ton 1=tonausgabe bei start und fehler
+ton_ein = 1                                                                        # 0=kein ton 1=tonausgabe bei start und fehler
 zellen = 8                                                                         # zellenzahl (anzahl balancer) 1-50
 sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
 sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser
@@ -21,6 +21,15 @@ tr_max_al_ein = 90                                                              
 tr_max_al_aus = 80                                                                 # alarm maximale shunttemperatur -> laden wieder ein
 t_unter = 0                                                                        # laden wird unterbrochen, wenn akkutemperatur kleiner ist
 SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
+ta_korr = [0] * zellen                                                             # nicht ändern !
+ta_korr[0] = 1                                                                     # korrekturwert akkutemperatur balancer 1
+ta_korr[1] = 1                                                                     # korrekturwert akkutemperatur balancer 2
+ta_korr[2] = 3                                                                     # korrekturwert akkutemperatur balancer 3
+ta_korr[3] = 0                                                                     # korrekturwert akkutemperatur balancer 4
+ta_korr[4] = 2                                                                     # korrekturwert akkutemperatur balancer 5
+ta_korr[5] = 3                                                                     # korrekturwert akkutemperatur balancer 6
+ta_korr[6] = 2                                                                     # korrekturwert akkutemperatur balancer 7
+ta_korr[7] = 3                                                                     # korrekturwert akkutemperatur balancer 8
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests
 if(oled_display):
@@ -93,7 +102,7 @@ sp_log = [0] * (96)                                                             
 t_log = [0] * (96)                                                                 # 15min aufzeichnung zeiten der letzten 24 stunden
 html_d = ""                                                                        # string daten
 html_t = ""                                                                        # string zeiten
-old_time = 0                                                                       # zeit der letzten mqtt sendung
+old_time = 0                                                                       # speichert zeit der letzten mqtt sendung 
 dis_time = 0                                                                       # oled displayversatz zeitzaehler
 dis_y = 0                                                                          # oled displayversatz hoehe
 dis_x = 0                                                                          # oled displayversatz rechts
@@ -103,7 +112,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.10 (13.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.11 (25.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -180,7 +189,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.10"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.11"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -359,7 +368,7 @@ def serial_rx():
             else:
                 ta_e[azelle-1] += 1
         else:
-            ta[azelle-1] = int(d)                                                  # temperaturwert uebernehmen
+            ta[azelle-1] = int(d) + ta_korr[azelle-1]                              # temperaturwert mit korrekturfaktor uebernehmen
             ta_e[azelle-1] = 0                                                     # fehlerzaehler zuruecksetzen
         print('TAWERT', ta[azelle-1], 'CELLERROR', ta_e[azelle-1], 'AERROR', a_error)
 
@@ -410,6 +419,8 @@ def log_spannung():                                                             
 def thingspeak():
     global old_time
     akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
+    if old_time == 0:
+        old_time = akt_time                                                        # nach neustart sendepause
     if akt_time - old_time > SEND_INTERVAL:
         wdt.feed()                                                                 # watchdog zuruecksetzen
         old_time = akt_time
