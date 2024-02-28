@@ -1,7 +1,7 @@
 # BMS Controller
 
 <p align="center">
-  <img src="https://github.com/devicplan/bms/blob/main/picture03.jpg" title="bms controller">
+  <img src="https://github.com/devicplan/bms/blob/main/pictures/picture03.jpg" title="bms controller">
 </p>
 
 A BMS - Battery Management System Controller has the task of monitoring a large number of LiFePo4, Li-Ion, LiPo battery cells so that they are not damaged during charging and discharging and can be used for as long as possible without any faults.
