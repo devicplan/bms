@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.11
+# BMS Controller LiPoFe4 Version 0.99.12
 # Micropython with Raspberry Pico W
-# 25.02.2024 jd@icplan.de
+# 28.02.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte anpassen
@@ -65,21 +65,22 @@ r_error = 0                                                                     
 laden_aus = 0                                                                      # 0 = laden moeglich 1 = aus zu gerine tempertur des akkus
 runde = 0                                                                          # messrundenzaehler
 urunde = 0                                                                         # messunterrundenzaehler
+urunde_mem = 0                                                                     # messunterrundenzaehler als speicher
 sp = [0] * zellen                                                                  # spannung jeder zelle
 sp_e = [0] * zellen                                                                # fehler bei spannungsmessung
 sp_min = 0                                                                         # kleinste zellenspannung
-sp_min_z = 0                                                                       # zellennummer mit der kleinsten spannung
+sp_min_z = 1                                                                       # zellennummer mit der kleinsten spannung
 sp_max = 0                                                                         # groesste zellenspannung
-sp_max_z = 0                                                                       # zellennummer mit der groessten spannung
+sp_max_z = 1                                                                       # zellennummer mit der groessten spannung
 sp_min_alarm = 0                                                                   # spannung einer zelle viel zu klein
 sp_max_alarm = 0                                                                   # spannung einer zelle viel zu gross
 ta_max_alarm = 0                                                                   # temperatur einer zelle viel zu gross
 ta_max = 0                                                                         # groesste akkutemperatur
-ta_max_z = 0                                                                       # zellennummer mit der groessten akkutemperatur
+ta_max_z = 1                                                                       # zellennummer mit der groessten akkutemperatur
 ta_alarm = 0                                                                       # akkutemperatur zu hoch
 ta_min = 0                                                                         # kleinste akkutemperatur
 tr_max = 0                                                                         # groesste shunttemperatur
-tr_max_z = 0                                                                       # zellennummer mit der groessten shunttemperatur
+tr_max_z = 1                                                                       # zellennummer mit der groessten shunttemperatur
 tr_alarm = 0                                                                       # shunttemperatur zu hoch
 rel1 = 0                                                                           # relais 1 (0=aus 1=ein)
 rel2 = 0                                                                           # relais 2 (0=aus 1=ein)
@@ -112,7 +113,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.11 (25.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.12 (28.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -189,7 +190,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.11"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.12"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -328,14 +329,25 @@ def serial_tx():
         if(urunde==4):
             s = '{:02d}'.format(azelle) + "06"                                     # softwareversion lesen
             uart0.write(s)
-    if(runde>0):
-        if(urunde==0):
-            s = '{:02d}'.format(azelle) + "05"                                     # spannung lesen
-            uart0.write(s)
+    if(runde==1):                                                                  # forciertes lesen min und maxwerte
+        urunde=0
+        azelle = sp_min_z                                                          # zelle mit kleinster spannung 
+        s = '{:02d}'.format(azelle) + "05"                                         # spannung lesen
+        uart0.write(s)
+    if(runde==2):                                                                  # forciertes lesen min und maxwerte
+        urunde=0
+        azelle = sp_max_z                                                          # zelle mit groesster spannung 
+        s = '{:02d}'.format(azelle) + "05"                                         # spannung lesen
+        uart0.write(s)
+    if(runde==3):                                                                  # forciertes lesen min und maxwerte
+        urunde=2
+        azelle = tr_max_z                                                          # zelle mit groesster shunttemperatur 
+        s = '{:02d}'.format(azelle) + "03"                                         # temperatur lesen
+        uart0.write(s)
     print("SENDE", s, " ", end='')
 
 def serial_rx():
-    global runde, urunde, sp, sp_e, tr, tr_e, ta, ta_e, up, soft, azelle, zellen, u_error, a_error, r_error
+    global runde, urunde, urunde_mem, sp, sp_e, tr, tr_e, ta, ta_e, up, soft, azelle, zellen, u_error, a_error, r_error
     er = 0                                                                         # 0 = kein fehler in messung
     response = uart0.readline()
     try:
@@ -393,13 +405,24 @@ def serial_rx():
         print('SOFTWARE', soft[azelle-1])
 
     azelle += 1                                                                    # hintereinander alle werte abfragen
-    if(azelle>zellen):
+    if(runde==0):
+        if(azelle>zellen):
+            urunde += 1
+            if(urunde==5):
+                urunde = 0
+            urunde_mem = urunde                                                    # abspeichern
+            runde=1
+    elif(runde==1):
+        runde=2
+    elif(runde==2):
+        runde=3
+    else:
+        runde=0
+        urunde = urunde_mem                                                        # zuruecklesen
         azelle = 1
-        urunde += 1
-        if(urunde==5):
-            urunde = 0
 
 def blinken():
+    
     led.on()                                                                       # led blinken als funktionskontrolle
     time.sleep(0.1)
     led.off()
