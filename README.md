@@ -8,7 +8,7 @@ A BMS - Battery Management System Controller has the task of monitoring a large 
 My BMS controller communicates with the balancer modules via a data bus and controls the charging and discharging of the battery cells directly via switching relays. In my case, these relays each switch a Victron Smart BatterieProtect (SSR 65-220A solid state relay). The battery cells are protected by the BMS controller against overcharging, over-discharging and high and low temperatures. The galvanically isolated bus connection uses its own serial data protocol and can read out the battery voltage, battery temperature and the temperature of the load resistors from the balancers at any time. As soon as a temperature that is too high or too low is detected or a malfunction occurs when reading the data, the BMS controller reacts appropriately and disconnects the load or interrupts charging. In the event of an error, an audio signal can be emitted for signaling purposes. In addition, a switched relay contact can be used freely. In the event of serious malfunctions, the BMS switches off charging or discharging completely. The error must then be acknowledged via the web interface or directly via a button on the BMS module. The BMS controller has a WLAN web interface and can connect to an existing WLAN network. The most important parameters of all battery cells and the function of the BMS can be called up in the network via a browser. To protect against tampering, it is not possible to change settings via the web interface. An OLED display on the BMS controller can also show the most important parameters of the battery cells. If there is a desire to record or further process the battery cell data, the BMS Controller can also send it to a free Thingspeak cloud account. 
 It would also be possible to use your own MQTT broker (FHEM, ioBroker, IP-Symcon, Mosquito ...) if a suitable software module is added.
 
-## Functions (Version 00.99.13)
+## Functions (Version 00.99.14)
 
 * 1 to 50 balancers can be connected via the isolated serial bus
 * maximum bus length 10m (line topology)
@@ -46,6 +46,7 @@ It would also be possible to use your own MQTT broker (FHEM, ioBroker, IP-Symcon
 * adjustable battery temperature values
 * forced reading of the cells with the minimum and maximum voltage + shunt temperature
 * switching status Rel1 and Rel2 is visible in the web view
+* Relay 1 and 2 can be switched via the web interface in the hyteresis window
 
 ## Technical data
 
@@ -61,7 +62,7 @@ Ein BMS - Batterie-Magement-System Controller hat die Aufgabe, eine größere Za
 Mein BMS Controller kommuniziert dafür über einen Datenbus mit den Balancermodulen und steuert direkt über Schaltrelais das Laden und Entladen der Akkuzellen. Bei mir schalten diese Relais je ein Victron Smart BatterieProtect (SSR 65-220A Halbleiterrelais). Die Akkuzellen werden durch den BMS Controller vor Überladung, zu tiefer Entladung, vor hohen und zu tiefen Temperaturen geschützt. Die galvanisch getrennte Bus Verbindung nutzt ein eigenes serielles Datenprotokoll und kann jederzeit aus den Balancern die Akkuspannung, die Akkutemperatur und die Temperatur der Lastwiderstände auslesen. Sobald eine zu hohe, zu tiefe Temperatur erkannt wird oder eine Fehlfunktion beim Lesen der Daten auftritt, reagiert der BMS Controller passend und trennt die Last oder unterbricht das Laden. Im Fehlerfall kann ein Tonsignal zur Signalisierung ausgegeben werden. Zusätzlich ist ein geschalteter Relaiskontakt frei nutzbar. Bei schwerwiegenden Fehlfunktionen schaltet das BMS das Laden oder Entladen komplett ab. Der Fehler muss dann über die Webschnittstelle oder direkt per Taster am BMS Modul quittiert werden. Der BMS Controller hat  eine WLAN Webschnittstelle und kann sich mit einem vorhandenen WLAN Netzwerk verbinden. Die wichtigsten Parameter aller Akkuzellen und der Funktion das BMS kann im Netzwerk per Browser aufgerufen werden. Als Schutz vor Manipulationen ist es über die Webschnittstelle nicht möglich, Einstellungen abzuändern. Ein OLED Display auf dem BMS Controller kann zusätzlich die wichtigsten Parameter der Akkuzellen zeigen. Besteht der Wunsch die Daten der Akkuzellen aufzuzeichnen oder weiterzuverarbeiten, dann kann der BMS Controller diese auch an einen kostenfreien Thingspeak Cloud-Account senden. 
 Auch die Nutzung eines eigenen MQTT Brokers (FHEM, ioBroker, IP-Symcon, Mosquito …) wäre möglich, wenn ein passender Softwarebaustein hinzugefügt wird.
 
-## Funktionen (Version 00.99.13)
+## Funktionen (Version 00.99.14)
 
 * 1 bis 50 Balancer können über den isolierten seriellen Bus angeschlossen werden
 * Buslänge maximal 10m (Linientopologie)
@@ -98,7 +99,8 @@ Auch die Nutzung eines eigenen MQTT Brokers (FHEM, ioBroker, IP-Symcon, Mosquito
 * Zeitsynchronisierung (WLAN notwendig)
 * Werte der Akkutemperatur justierbar
 * forciertes lesen der Zellen mit der minimalen und maximalen Spannung + Shunttemperatur
-* Schaltzustand Rel1 und Rel2 im der Webansicht zu sehen 
+* Schaltzustand Rel1 und Rel2 im der Webansicht zu sehen
+* Relais 1 und 2 kann über die Weboberfläche im Hyteresefenster umgeschaltet werden
 
 ## technische Daten
 
