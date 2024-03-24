@@ -1,1 +1,2 @@
-
+31.01.2024 RPI_PICO_W-20240105-v1.22.1.uf2 works perfectly
+24.03.2024 RPI_PICO_W-20240222-v1.22.2.uf2 works perfectly
