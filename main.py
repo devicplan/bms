@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.13
+# BMS Controller LiPoFe4 Version 0.99.14 mit V1.22.2
 # Micropython with Raspberry Pico W
-# 29.02.2024 jd@icplan.de
+# 24.03.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte anpassen
@@ -9,7 +9,7 @@ wifi_ein = 1                                                                    
 ton_ein = 1                                                                        # 0=kein ton 1=tonausgabe bei start und fehler
 zellen = 8                                                                         # zellenzahl (anzahl balancer) 1-50
 sp_min_aus = 3.05                                                                  # r1 entladen aus - mindestspannung
-sp_min_ein = 3.20                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser
+sp_min_ein = 3.25                                                                  # r1 entladen ein - wiedereinschaltspannung gleich oder groesser
 sp_min_al = 2.95                                                                   # unterspannungsalarm tonzeichen - wenn eine zelle unter dieser spannung liegt
 sp_max_aus = 3.70                                                                  # r2 laden aus - maximalspannung
 sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
@@ -113,7 +113,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.13 (29.02.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.14 (24.03.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -192,7 +192,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.13"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.14"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -526,6 +526,20 @@ while True:                                                                     
         while True:
             line = cl_file.readline()
             lines = str(line)
+            if((lines.find("/relais1"))!=(-1)):                                    # wenn relais1 string auftaucht, rel1 umschalten
+                if(rel1==1):
+                    rel1=0
+                    R1.off()
+                else:
+                    rel1=1
+                    R1.on()
+            if((lines.find("/relais2"))!=(-1)):                                    # wenn relais2 string auftaucht, rel2 umschalten
+                if(rel2==1):
+                    rel2=0
+                    R2.off()
+                else:
+                    rel2=1
+                    R2.on()
             if((lines.find("/sommer"))!=(-1)):
                 sowi = 2
             if((lines.find("/winter"))!=(-1)):
@@ -591,15 +605,16 @@ while True:                                                                     
         else:
             error_text = "ok"
         response += error_text + html06
+
         if(rel1):                                                                  # anzeige relaisschaltzustand 1
-            error_text = "ein" 
+            error_text = """<a href="relais1">ein</a>"""
         else:
-            error_text = "aus"
+            error_text = """<a href="relais1">aus</a>"""
         response += error_text + html07
         if(rel2):                                                                  # anzeige relaisschaltzustand 2
-            error_text = "ein" 
+            error_text = """<a href="relais2">ein</a>""" 
         else:
-            error_text = "aus"
+            error_text = """<a href="relais2">aus</a>"""
         response += error_text + html08
         error_text = ""                                                            # text der fehlfunktion
         if((u_error)or(a_error)or(r_error)):
@@ -646,6 +661,7 @@ while True:                                                                     
         cl.close()
         wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(4)
+        wdt.feed()                                                                 # watchdog zuruecksetzen
 
     except OSError as e:
         if((e.args[0])==110):                                                      # error 110 = timeout socket
@@ -656,6 +672,7 @@ while True:                                                                     
             print('connection closed')
             
     serial_rx()                                                                    # seriellen datensatz empfangen und auswerten
+    wdt.feed()                                                                     # watchdog zuruecksetzen
 
     if(time_a[5] < 10):
         if((time_a[4] % 15) == 0):                                                 # zu jeder 0, 15, 30, 45 minute
@@ -680,7 +697,8 @@ while True:                                                                     
     
     blinken()                                                                      # board led kurz zur funktionskontrolle aufblinken
     min_max()                                                                      # spannungen auswerten und relais schalten
-    alarmton()                                                                     # tonzeichen ausgeben bei fehler         
+    alarmton()                                                                     # tonzeichen ausgeben bei fehler
+    wdt.feed()                                                                     # watchdog zuruecksetzen
     if(oled_display):                                                              # soll oled genutzt werden
         anzeige()                                                                  # auf oled anzeigen
     if(wifi_ein):                                                                  # soll wifi genutzt werden
