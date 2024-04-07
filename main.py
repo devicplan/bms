@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.14 mit V1.22.2
+# BMS Controller LiPoFe4 Version 0.99.15 mit V1.22.2
 # Micropython with Raspberry Pico W
-# 24.03.2024 jd@icplan.de
+# 07.04.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte anpassen
@@ -113,7 +113,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.14 (24.03.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.15 (07.04.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -126,7 +126,8 @@ html09 = """</td></tr></table><br>"""
 html10 = """<table bgcolor="#B4D8F8" border="1" cellspacing="1" width="600"><tr><td bgcolor="#94B8E0" width="50"><b>Nr.</b></td><td bgcolor="#94B8E0" width="100"><b>Spannung</b></td><td bgcolor="#94B8E0" width="100"><b>Temp. Akku</b></td><td bgcolor="#94B8E0" width="100"><b>Temp. Shunt</b></td><td bgcolor="#94B8E0" width="140"><b>Uptime</b></td><td bgcolor="#94B8E0"><b>Software</b></td></tr>"""
 html20 = """Ansicht der Akkuspannung der <a href="https://quickchart.io/chart?c={type:'line',data:{labels:["""
 html21 = """],datasets:[{label:'LiFePo4 Spannung der letzten 24 Stunden (Volt)',data:["""
-html22 = """]}]}}">letzten 24 Stunden</a> als Chart<br>"""
+html22 = """]}]},options:{scales:{yAxes:[{ticks:{min:"""
+html23 = """,stepSize: 0.5,},},],}}}">letzten 24 Stunden</a> als Chart<br>"""
 html98 = """</table><br>"""
 html99 = """</body></html>"""
 
@@ -192,7 +193,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.14"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.15"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -654,6 +655,21 @@ while True:                                                                     
             response += """</td></tr>"""
         response += html98
         response += html20 + html_t + html21 + html_d + html22                     # chart einfuegen
+        
+        ulog_max = 0                                                               # hoechsten wert finden
+        for z in range (0,96,1):
+            if(ulog_max < sp_log[z]):
+                ulog_max = sp_log[z]
+        ulog_max = int(ulog_max) + 1                                               # aufrunden
+        
+        ulog_min = 500                                                             # kleinsten wert finden
+        for z in range (0,96,1):
+            if(ulog_min > sp_log[z]):
+                if(sp_log[z] != 0):                                                # null nicht zulassen
+                    ulog_min = sp_log[z]
+        ulog_min = int(ulog_min)                                                   # abrunden
+
+        response += str(ulog_min) + """,max:""" + str(ulog_max) + html23           # chart min und max einfuegen
         response += html99
         
         cl.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
