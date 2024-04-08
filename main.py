@@ -1,9 +1,9 @@
 # BMS Controller LiPoFe4 Version 0.99.15 mit V1.22.2
 # Micropython with Raspberry Pico W
-# 07.04.2024 jd@icplan.de
+# 08.04.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
-# bitte anpassen
+# bitte selbst anpassen
 oled_display = 1                                                                   # 0=kein display 1=betrieb mit oled display
 wifi_ein = 1                                                                       # 0=kein wifi 1=betrieb mit wifi und internet
 ton_ein = 1                                                                        # 0=kein ton 1=tonausgabe bei start und fehler
@@ -15,10 +15,10 @@ sp_max_aus = 3.70                                                               
 sp_max_ein = 3.65                                                                  # r2 laden ein - wiedereinschalten wenn gleich oder kleiner
 sp_max_al = 3.75                                                                   # ueberspannungsalarm tonzeichen - wenn eine zelle ueber dieser spannung liegt
 ta_max_al = 60                                                                     # uebertemperatur akku tonzeichen - wenn eine zelle ueber dieser temperatur liegt
-ta_max_al_ein = 45                                                                 # alarm maximale akkutemperatur ein -> laden & entladen aus
-ta_max_al_aus = 40                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
+ta_max_al_ein = 50                                                                 # alarm maximale akkutemperatur ein -> laden & entladen aus
+ta_max_al_aus = 45                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
 tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
-tr_max_al_aus = 80                                                                 # alarm maximale shunttemperatur -> laden wieder ein
+tr_max_al_aus = 60                                                                 # alarm maximale shunttemperatur -> laden wieder ein
 t_unter = 0                                                                        # laden wird unterbrochen, wenn akkutemperatur kleiner ist
 SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
 ta_korr = [0] * zellen                                                             # nicht ändern !
@@ -30,6 +30,7 @@ ta_korr[4] = 2                                                                  
 ta_korr[5] = 3                                                                     # korrekturwert akkutemperatur balancer 6
 ta_korr[6] = 2                                                                     # korrekturwert akkutemperatur balancer 7
 ta_korr[7] = 3                                                                     # korrekturwert akkutemperatur balancer 8
+# ab hier nichts mehr anpassen
 
 import secrets, network, socket, time, ntptime, utime, machine, os, urequests
 if(oled_display):
@@ -57,7 +58,7 @@ BUZ.off()
 time.sleep(2)                                                                      # bei programmstart 2 sekunden warten
 
 # ab hier nichts aendern !
-sowi = 1                                                                           # 2=sommerzeit 1=winterzeit
+sowi = 2                                                                           # 2=sommerzeit 1=winterzeit
 azelle = 1                                                                         # aktuelle abgefragte zelle
 u_error = 0                                                                        # 0 = kein 1 = mindestens ein fehler bei spannungsmessung
 a_error = 0                                                                        # 0 = kein 1 = mindestens ein fehler temperatur am akku (ATTINY)
@@ -113,7 +114,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.15 (07.04.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.15 (08.04.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -637,7 +638,7 @@ while True:                                                                     
             response += """<tr><td>"""
             response += str(z+1)                                                   # balancernummer
             response += """</td><td>"""
-            response += str(sp[z])                                                 # spannungswert
+            response += str("%4.3f" %(sp[z]))                                      # spannungswert
             response += """</td><td>"""
             response += str(ta[z])                                                 # temperatur akku (attiny)
             response += """</td><td>"""
@@ -660,14 +661,14 @@ while True:                                                                     
         for z in range (0,96,1):
             if(ulog_max < sp_log[z]):
                 ulog_max = sp_log[z]
-        ulog_max = int(ulog_max) + 1                                               # aufrunden
+        ulog_max = (int(ulog_max * 2) + 1) / 2                                     # aufrunden auf 0,5 Volt
         
         ulog_min = 500                                                             # kleinsten wert finden
         for z in range (0,96,1):
             if(ulog_min > sp_log[z]):
                 if(sp_log[z] != 0):                                                # null nicht zulassen
                     ulog_min = sp_log[z]
-        ulog_min = int(ulog_min)                                                   # abrunden
+        ulog_min = (int(ulog_min * 2)) / 2                                         # abrunden auf 0,5 Volt
 
         response += str(ulog_min) + """,max:""" + str(ulog_max) + html23           # chart min und max einfuegen
         response += html99
