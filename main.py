@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.15 mit V1.22.2
+# BMS Controller LiPoFe4 Version 0.99.16 mit V1.22.2
 # Micropython with Raspberry Pico W
-# 08.04.2024 jd@icplan.de
+# 24.05.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte selbst anpassen
@@ -114,7 +114,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.15 (08.04.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.16 (24.05.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -158,6 +158,35 @@ def pin_interrupt(Pin):                                                         
 
 tas.irq(trigger=machine.Pin.IRQ_RISING, handler=pin_interrupt)                     # definition interrupt bei gedrueckte mode taste
 
+def backup_write():                                                                # backup der daten (graph) erstellen
+    global sp_log, t_log
+    try:
+        os.remove('backup.py')
+    except OSError as error:
+        print('backup.py - File does not exist')
+    daten = sp_log + t_log
+    e = ''
+    file = open('backup.py','w')
+    for a in range (0,len(daten),1):
+        e = e + str(daten[a])
+        if(a < (len(daten)-1)): e = e +';'
+    file.write(e)
+    file.close()
+    
+def backup_read():                                                                 # restore der daten (graph)
+    global sp_log, t_log
+    try:
+        file = open('backup.py','r')
+    except OSError as error:
+        print('backup.py - File does not exist')
+        return
+    f = file.read()                                                                # file lesen
+    file.close()
+    e = f.split(';')                                                               # data schneiden
+    for a in range (0,96,1):                                                       # zurueckspielen
+        sp_log[a] = float(e[a])
+        t_log[a] = e[a+96]
+
 def fehler():                                                                      # fehlerreaktionen
     if(u_error)or(a_error)or(r_error)or(sp_min_alarm)or(sp_max_alarm)or(ta_max_alarm):
         LED_ROT.off()                                                              # rote led ein
@@ -194,7 +223,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.15"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.16"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -515,6 +544,7 @@ s.settimeout(4)
 s.listen(10)
 print('listening on', addr)
 wdt = machine.WDT(timeout=8000)                                                    # watchdog auf 8 sekunden stellen
+backup_read()                                                                      # restore backup daten
 
 while True:                                                                        # endlosschleife Hauptprogramm
     local_time_sec = utime.time() + (int(sowi) * 3600)                             # zeitzohne beruecksichtigen
@@ -694,6 +724,7 @@ while True:                                                                     
     if(time_a[5] < 10):
         if((time_a[4] % 15) == 0):                                                 # zu jeder 0, 15, 30, 45 minute
             log_spannung()
+            backup_write()                                                         # daten sichern
             wdt.feed()                                                             # watchdog zuruecksetzen
             time.sleep(5)
             wdt.feed()                                                             # watchdog zuruecksetzen
