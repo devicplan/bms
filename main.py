@@ -1,6 +1,6 @@
 # BMS Controller LiPoFe4 Version 0.99.17 mit V1.23.0
 # Micropython with Raspberry Pico W
-# 08.07.2024 jd@icplan.de
+# 10.07.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte selbst anpassen
@@ -32,7 +32,7 @@ ta_korr[6] = 2                                                                  
 ta_korr[7] = 3                                                                     # korrekturwert akkutemperatur balancer 8
 # ab hier nichts mehr anpassen
 
-import secrets, network, socket, time, ntptime, utime, machine, os, urequests
+import secrets, network, socket, time, ntptime, utime, machine, os, requests
 if(oled_display):
     import display 
 
@@ -114,7 +114,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.17 (08.07.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.17 (10.07.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -498,10 +498,10 @@ def thingspeak():
         if(zellen>=8):
             payload = {'field1':str(sp[0]), 'field2':str(sp[1]), 'field3':str(sp[2]), 'field4':str(sp[3]), 'field5':str(sp[4]), 'field6':str(sp[5]), 'field7':str(sp[6]), 'field8':str(sp[7])}
         try:
-            request = urequests.post( 'https://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS, timeout = 5 )  
-            request.close()
+            request = requests.get( 'https://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS, timeout = 6 )  
         except OSError as error:
             print(str("mqtt_errornr="),error)
+        request.close()
         wdt.feed()                                                                 # watchdog zuruecksetzen
 
 # programmstart
