@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.17 mit V1.23.0
+# BMS Controller LiPoFe4 Version 0.99.18 mit V1.23.0
 # Micropython with Raspberry Pico W
-# 10.07.2024 jd@icplan.de
+# 21.07.2024 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte selbst anpassen
@@ -32,7 +32,7 @@ ta_korr[6] = 2                                                                  
 ta_korr[7] = 3                                                                     # korrekturwert akkutemperatur balancer 8
 # ab hier nichts mehr anpassen
 
-import secrets, network, socket, time, ntptime, utime, machine, os, requests
+import secrets, network, socket, time, ntptime, utime, machine, os, gc
 if(oled_display):
     import display 
 
@@ -114,7 +114,7 @@ dis_zei = 0                                                                     
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.17 (10.07.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.18 (21.07.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -223,7 +223,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.17"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.18"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -474,11 +474,12 @@ def log_spannung():                                                             
 
 def thingspeak():
     global old_time
+    wdt.feed()                                                                     # watchdog zuruecksetzen
     akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
     if old_time == 0:
         old_time = akt_time                                                        # nach neustart sendepause
     if akt_time - old_time > SEND_INTERVAL:
-        wdt.feed()                                                                 # watchdog zuruecksetzen
+        import requests                                                            # library requests laden
         old_time = akt_time
         print('senden an ThingSpeak')
         if(zellen==1):
@@ -498,11 +499,15 @@ def thingspeak():
         if(zellen>=8):
             payload = {'field1':str(sp[0]), 'field2':str(sp[1]), 'field3':str(sp[2]), 'field4':str(sp[3]), 'field5':str(sp[4]), 'field6':str(sp[5]), 'field7':str(sp[6]), 'field8':str(sp[7])}
         try:
-            request = requests.get( 'https://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS, timeout = 6 )  
+            request = requests.get( 'https://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS, timeout = 5)  
         except OSError as error:
             print(str("mqtt_errornr="),error)
         request.close()
-        wdt.feed()                                                                 # watchdog zuruecksetzen
+        del requests                                                               # library wieder entladen
+    gc.collect()                                                                   # speicherplatz freigeben
+#    print("freier Speicher = " + str(gc.mem_free()))                              # anzeige freier ram                      
+    wdt.feed()                                                                     # watchdog zuruecksetzen
+
 
 # programmstart
 max_wait = 30                                                                      # warten auf WLAN Verbindung
@@ -545,6 +550,7 @@ s.listen(10)
 print('listening on', addr)
 wdt = machine.WDT(timeout=8000)                                                    # watchdog auf 8 sekunden stellen
 backup_read()                                                                      # restore backup daten
+# _thread.start_new_thread(thingspeak, ())                                           # funktion aufrufen und vom 2. Kern ausführen lassen
 
 while True:                                                                        # endlosschleife Hauptprogramm
     local_time_sec = utime.time() + (int(sowi) * 3600)                             # zeitzohne beruecksichtigen
