@@ -550,7 +550,6 @@ s.listen(10)
 print('listening on', addr)
 wdt = machine.WDT(timeout=8000)                                                    # watchdog auf 8 sekunden stellen
 backup_read()                                                                      # restore backup daten
-# _thread.start_new_thread(thingspeak, ())                                           # funktion aufrufen und vom 2. Kern ausführen lassen
 
 while True:                                                                        # endlosschleife Hauptprogramm
     local_time_sec = utime.time() + (int(sowi) * 3600)                             # zeitzohne beruecksichtigen
