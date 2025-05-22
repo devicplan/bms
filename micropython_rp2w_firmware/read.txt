@@ -1,5 +1,5 @@
+15.04.2025 RPI_PICO_W-20250415-v1.25.0.uf2 (test started 22.05.2025)
 12.01.2025 RPI_PICO_W-20241129-v1.24.1.uf2 works perfectly
 05.08.2024 RPI_PICO_W-20240602-v1.23.0.uf2 works perfectly
 31.01.2024 RPI_PICO_W-20240105-v1.22.1.uf2 works perfectly
 24.03.2024 RPI_PICO_W-20240222-v1.22.2.uf2 works perfectly
-15.04.2025 RPI_PICO_W-20250415-v1.25.0.uf2 (test started 22.05.2025)
