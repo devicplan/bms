@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.18 mit V1.23.0
+# BMS Controller LiPoFe4 Version 0.99.19 mit V1.25.0
 # Micropython with Raspberry Pico W
-# 21.07.2024 jd@icplan.de
+# 22.07.2025 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte selbst anpassen
@@ -19,7 +19,7 @@ ta_max_al_ein = 50                                                              
 ta_max_al_aus = 45                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
 tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
 tr_max_al_aus = 60                                                                 # alarm maximale shunttemperatur -> laden wieder ein
-t_unter = 0                                                                        # laden wird unterbrochen, wenn akkutemperatur kleiner ist
+t_unter = -10                                                                        # laden wird unterbrochen, wenn akkutemperatur kleiner ist
 SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
 ta_korr = [0] * zellen                                                             # nicht ändern !
 ta_korr[0] = 1                                                                     # korrekturwert akkutemperatur balancer 1
@@ -32,7 +32,7 @@ ta_korr[6] = 2                                                                  
 ta_korr[7] = 3                                                                     # korrekturwert akkutemperatur balancer 8
 # ab hier nichts mehr anpassen
 
-import secrets, network, socket, time, ntptime, utime, machine, os, gc
+import secrets, network, socket, time, ntptime, utime, machine, os, gc, _thread
 if(oled_display):
     import display 
 
@@ -109,12 +109,13 @@ dis_time = 0                                                                    
 dis_y = 0                                                                          # oled displayversatz hoehe
 dis_x = 0                                                                          # oled displayversatz rechts
 dis_zei = 0                                                                        # zaehler zum umschalten der untersten zeile
+wdt_zaehler = 60                                                                   # watchdog extender 60 sekunden
 
 # html daten fuer webanzeige und quickchart
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.18 (21.07.2024)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.20 (22.07.2025)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -157,6 +158,18 @@ def pin_interrupt(Pin):                                                         
         tr_e[a] = 0
 
 tas.irq(trigger=machine.Pin.IRQ_RISING, handler=pin_interrupt)                     # definition interrupt bei gedrueckte mode taste
+
+def wd_extender():                                                                 # watchdog verlaengerer
+    global wdt_zaehler
+    while(-1):
+        time.sleep(1)
+        if(wdt_zaehler > 0):
+            wdt_zaehler -= 1
+            wdt.feed()
+        else:
+            print("WDT Extender ist abgelaufen")
+            time.sleep(1)
+            machine.reset()                                                        # neustart
 
 def backup_write():                                                                # backup der daten (graph) erstellen
     global sp_log, t_log
@@ -223,7 +236,7 @@ def anzeige():                                                                  
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
         text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
     if(dis_zei==2):
-        text = "SW Version 00.99.18"                                               # softwareversion anzeigen
+        text = "SW Version 00.99.19"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
     display.show()
     dis_zei += 1                                                                   # zaehler unterste zeile
@@ -474,14 +487,17 @@ def log_spannung():                                                             
 
 def thingspeak():
     global old_time
-    wdt.feed()                                                                     # watchdog zuruecksetzen
     akt_time = time.time()                                                         # nach sendeintervall daten zu thingspeak versenden
     if old_time == 0:
         old_time = akt_time                                                        # nach neustart sendepause
     if akt_time - old_time > SEND_INTERVAL:
-        import requests                                                            # library requests laden
+        import requests
         old_time = akt_time
-        print('senden an ThingSpeak')
+
+        print(' ')                                                                 ## test thingspeak
+        timestamp()
+        print('Beginn ThingSpeak')
+
         if(zellen==1):
             payload = {'field1':str(sp[0])}                                        # spannungsdaten bei einer zelle
         if(zellen==2):
@@ -500,14 +516,23 @@ def thingspeak():
             payload = {'field1':str(sp[0]), 'field2':str(sp[1]), 'field3':str(sp[2]), 'field4':str(sp[3]), 'field5':str(sp[4]), 'field6':str(sp[5]), 'field7':str(sp[6]), 'field8':str(sp[7])}
         try:
             request = requests.get( 'https://api.thingspeak.com/update?api_key=' + secrets.WRITE_API_KEY, json = payload, headers = HTTP_HEADERS, timeout = 5)  
+            request.close()
         except OSError as error:
             print(str("mqtt_errornr="),error)
-        request.close()
-        del requests                                                               # library wieder entladen
-    gc.collect()                                                                   # speicherplatz freigeben
-#    print("freier Speicher = " + str(gc.mem_free()))                              # anzeige freier ram                      
-    wdt.feed()                                                                     # watchdog zuruecksetzen
+        del requests
 
+        print('Ende ThingSpeak')                                                   ## test thingspeak
+        print("WD Timer = ",str(wdt_zaehler))
+        timestamp()
+        print(' ')
+
+    gc.collect()
+    print("freier Speicher = " + str(gc.mem_free()))
+
+def timestamp():
+    local_time_sec = utime.time() + (int(sowi) * 3600)                             # zeitzohne beruecksichtigen
+    time_t = utime.localtime(local_time_sec)
+    print("%02d.%02d.%4d %02d:%02d:%02d " % (time_t[2],time_t[1],time_t[0],time_t[3],time_t[4],time_t[5]))
 
 # programmstart
 max_wait = 30                                                                      # warten auf WLAN Verbindung
@@ -551,13 +576,14 @@ print('listening on', addr)
 wdt = machine.WDT(timeout=8000)                                                    # watchdog auf 8 sekunden stellen
 backup_read()                                                                      # restore backup daten
 
+_thread.start_new_thread(wd_extender, ())                                          # programm wdt extender auf cpu 2 starten
+
 while True:                                                                        # endlosschleife Hauptprogramm
     local_time_sec = utime.time() + (int(sowi) * 3600)                             # zeitzohne beruecksichtigen
     time_a = utime.localtime(local_time_sec)
     serial_tx()                                                                    # seriellen datensatz senden
     try:
         cl, addr = s.accept()
-        wdt.feed()                                                                 # watchdog zuruecksetzen
         print('client connected from', addr)
         cl_file = cl.makefile('rwb', 0)
         while True:
@@ -711,9 +737,7 @@ while True:                                                                     
         cl.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
         cl.send(response)
         cl.close()
-        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(4)
-        wdt.feed()                                                                 # watchdog zuruecksetzen
 
     except OSError as e:
         if((e.args[0])==110):                                                      # error 110 = timeout socket
@@ -722,40 +746,31 @@ while True:                                                                     
         else:
             cl.close()
             print('connection closed')
-            
+
     serial_rx()                                                                    # seriellen datensatz empfangen und auswerten
-    wdt.feed()                                                                     # watchdog zuruecksetzen
 
     if(time_a[5] < 10):
         if((time_a[4] % 15) == 0):                                                 # zu jeder 0, 15, 30, 45 minute
             log_spannung()
             backup_write()                                                         # daten sichern
-            wdt.feed()                                                             # watchdog zuruecksetzen
             time.sleep(5)
-            wdt.feed()                                                             # watchdog zuruecksetzen
             time.sleep(5)
-            wdt.feed()
     if((time_a[3] == 0)and(time_a[4] == 0)):                                       # taeglich um null uhr die interne zeit stellen
-        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(5)
-        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(5)
-        wdt.feed()                                                                 # watchdog zuruecksetzen
         time.sleep(5)
-        wdt.feed()                                                                 # watchdog zuruecksetzen
         try:
             ntptime.settime()                                                      # update zeit per ntp
         except OSError as error:
             print(str("errornr="),error)
-    
+            
     blinken()                                                                      # board led kurz zur funktionskontrolle aufblinken
     min_max()                                                                      # spannungen auswerten und relais schalten
     alarmton()                                                                     # tonzeichen ausgeben bei fehler
-    wdt.feed()                                                                     # watchdog zuruecksetzen
     if(oled_display):                                                              # soll oled genutzt werden
         anzeige()                                                                  # auf oled anzeigen
     if(wifi_ein):                                                                  # soll wifi genutzt werden
         thingspeak()                                                               # daten zu thinhspeak senden
     fehler()                                                                       # fehlerbehandlung
-    wdt.feed()                                                                     # watchdog zuruecksetzen
-
+    wdt_zaehler = 60
+    
