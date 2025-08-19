@@ -1,6 +1,6 @@
-# BMS Controller LiPoFe4 Version 0.99.19 mit V1.25.0
+# BMS Controller LiPoFe4 Version 0.99.19 mit V1.26.0
 # Micropython with Raspberry Pico W
-# 22.07.2025 jd@icplan.de
+# 18.08.2025 jd@icplan.de
 # mit senden der 8 zellenspannungen an Thingspeak
 
 # bitte selbst anpassen
@@ -19,7 +19,7 @@ ta_max_al_ein = 50                                                              
 ta_max_al_aus = 45                                                                 # alarm maximale akkutemperatur aus -> laden & entladen ein
 tr_max_al_ein = 90                                                                 # alarm maximale shunttemperatur -> laden aus
 tr_max_al_aus = 60                                                                 # alarm maximale shunttemperatur -> laden wieder ein
-t_unter = -10                                                                        # laden wird unterbrochen, wenn akkutemperatur kleiner ist
+t_unter = -10                                                                      # laden wird unterbrochen, wenn akkutemperatur kleiner ist
 SEND_INTERVAL = 300                                                                # sendeintervall thingspeak in sekunden
 ta_korr = [0] * zellen                                                             # nicht ändern !
 ta_korr[0] = 1                                                                     # korrekturwert akkutemperatur balancer 1
@@ -30,6 +30,7 @@ ta_korr[4] = 2                                                                  
 ta_korr[5] = 3                                                                     # korrekturwert akkutemperatur balancer 6
 ta_korr[6] = 2                                                                     # korrekturwert akkutemperatur balancer 7
 ta_korr[7] = 3                                                                     # korrekturwert akkutemperatur balancer 8
+uptime_korr = (27 * (24*60*60))                                                    # uptime korrigieren moeglich, wenn bms geplant neu gestartet wurde             
 # ab hier nichts mehr anpassen
 
 import secrets, network, socket, time, ntptime, utime, machine, os, gc, _thread
@@ -115,7 +116,7 @@ wdt_zaehler = 60                                                                
 html00 = """<!DOCTYPE html><html>
     <head><meta http-equiv="content-type" content="text/html; charset=utf-8"><title>BMS Controller für LiFePo4 Balancer</title></head>
     <body><body bgcolor="#A4C8F0"><h1>BMS Controller f&uuml;r LiFePo4 Balancer</h1>
-    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.20 (22.07.2025)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
+    <table "width=600"><tr><td width="300"><b>Softwareversion</b></td><td>0.99.19 (18.08.2025)</td></tr><tr><td><b>Pico W Firmware</b></td><td>"""
 html01 = """</td></tr><tr><td><b>Idee & Entwicklung</b></td><td>https://icplan.de</td></tr><tr><td><b>Datum und Uhrzeit</b></td><td>"""
 html02 = """</td></tr><tr><td><b>BMS Uptime</b></td><td>"""
 html03 = """</td></tr><tr><td><b>Balancer Akku Spannungsmessung</b></td><td>"""
@@ -229,12 +230,12 @@ def anzeige():                                                                  
     if(dis_zei==0):
         text = "IP " + status[0]                                                   # ip adresse zeigen
     if(dis_zei==1):
-        uptime =  time.time() - bms_start_t                                        # uptime bms modul berechnen
+        uptime =  time.time() - bms_start_t + uptime_korr                          # uptime bms modul berechnen
         d = int(uptime/(24*60*60))
         h = int((uptime-(d*24*60*60))/(60*60))
         m = int((uptime-(d*24*60*60)-(h*60*60))/60)
         s = int(uptime-(d*24*60*60)-(h*60*60)-(m*60))
-        text = "UP " + str(d) +"d %02dh %02dm %02ds" % (h,m,s)
+        text = "UP " +"%03dd %02dh %02dm %02ds" % (d,h,m,s)
     if(dis_zei==2):
         text = "SW Version 00.99.19"                                               # softwareversion anzeigen
     display.dis(text,0+dis_x,52+dis_y,0)
@@ -632,7 +633,7 @@ while True:                                                                     
         rp2v = uname.release
         response = html00 + rp2v + html01 + thistime + html02
              
-        upt =  time.time() - bms_start_t                                           # uptime bms modul berechnen und anzeigen
+        upt =  time.time() - bms_start_t + uptime_korr                             # uptime bms modul berechnen und anzeigen
         up_d = int(upt/(24*60*60))
         up_h = int((upt-(up_d*24*60*60))/(60*60))
         up_m = int((upt-(up_d*24*60*60)-(up_h*60*60))/60)
@@ -774,3 +775,4 @@ while True:                                                                     
     fehler()                                                                       # fehlerbehandlung
     wdt_zaehler = 60
     
+
